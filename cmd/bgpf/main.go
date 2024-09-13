@@ -79,20 +79,20 @@ func (c *FilesCmd) Run(log bgpfinder.Logger, cli BgpfCLI) error {
 		return fmt.Errorf("failed to parse 'until' time: %v", err)
 	}
 
-	proj := bgpfinder.Project{Name: c.Project}
-	colls := []bgpfinder.Collector{}
+	project := bgpfinder.Project{Name: c.Project}
+	collectors := []bgpfinder.Collector{}
+
 	for _, c := range c.Collectors {
-		colls = append(colls,
+		collectors = append(collectors,
 			bgpfinder.Collector{
-				Project: proj,
+				Project: project,
 				Name:    c,
-				// no internal name
 			},
 		)
 	}
 
 	query := bgpfinder.Query{
-		Collectors: colls,
+		Collectors: collectors,
 		From:       fromTime,
 		Until:      untilTime,
 		DumpType:   c.Type,
@@ -142,7 +142,7 @@ func handleSignals(ctx context.Context, log bgpfinder.Logger, cancel context.Can
 			case <-ctx.Done():
 				return
 			case <-sigCh:
-				log.Info().Msgf("Signal recevied, triggering shutdown")
+				log.Info().Msgf("Signal received, triggering shutdown")
 				cancel()
 				return
 			}
@@ -163,7 +163,7 @@ func main() {
 	var cliCfg BgpfCLI
 	k := kong.Parse(&cliCfg,
 		kong.Vars{
-			"dump_type_def":  bgpfinder.DUMP_TYPE_ANY.String(),
+			"dump_type_def":  bgpfinder.DumpTypeAny.String(),
 			"dump_type_opts": dumpOptsStr(),
 		},
 	)

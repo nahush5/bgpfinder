@@ -6,25 +6,24 @@ import (
 	"time"
 )
 
-// Just a sketch of what the base Finder interface might look like.  Everything
+// Finder Just a sketch of what the base Finder interface might look like.  Everything
 // gets built on top of (or under, I guess) this.
 type Finder interface {
-	// Get the list of projects supported by this finder
+	// Projects gets the list of projects supported by this finder
 	Projects() ([]Project, error)
 
-	// Get a specific project
+	// Project gets a specific project
 	Project(name string) (Project, error)
 
-	// Get the list of collectors supported by the given project. All
+	// Collectors gets the list of collectors supported by the given project. All
 	// projects if unset.
 	Collectors(project string) ([]Collector, error)
 
-	// Get a specific collector by name, returns the zero collector if there
-	// is no such collector
+	// Collector gets a specific collector by name
 	Collector(name string) (Collector, error)
 
 	// Find all the BGP data URLs that match the given query
-	Find(query Query) ([]File, error)
+	Find(query Query) ([]BGPDump, error)
 }
 
 type Project struct {
@@ -45,12 +44,7 @@ type Collector struct {
 
 	// Name of the collector
 	Name string `json:"name"`
-
-	// Project-internal name for this collector
-	InternalName string `json:"internal_name"`
 }
-
-var ZeroCollector = Collector{}
 
 func (c Collector) String() string {
 	return fmt.Sprintf("%s:%s", c.Project, c.Name)
@@ -60,7 +54,6 @@ func (c Collector) AsCSV() string {
 	return strings.Join([]string{
 		c.Project.AsCSV(),
 		c.Name,
-		c.InternalName,
 	}, ",")
 }
 
@@ -70,14 +63,12 @@ func (c Collector) AsCSV() string {
 type DumpType uint8
 
 const (
-	DUMP_TYPE_ANY     DumpType = 0 // any
-	DUMP_TYPE_RIB     DumpType = 1 // rib
-	DUMP_TYPE_UPDATES DumpType = 2 // updates
+	DumpTypeAny     DumpType = 0 // any
+	DumpTypeRib     DumpType = 1 // rib
+	DumpTypeUpdates DumpType = 2 // updates
 )
 
-// TODO: think about how this should work -- just keep it simple! no
-// complex query structures
-//
+// TODO: think about how this should work -- just keep it simple! no complex query structures
 // TODO: add Validate method (e.g., From is before Until, IsADumpType, etc.)
 type Query struct {
 	// Collectors to search for. All collectors if unset/empty
@@ -93,9 +84,8 @@ type Query struct {
 	DumpType DumpType
 }
 
-// Represents a single BGP file found by a Finder.
-// TODO: better name for this. Dump is a candidate.
-type File struct {
+// BGPDump represents a single BGP file found by a Finder.
+type BGPDump struct {
 	// URL of the file
 	URL string
 
@@ -105,7 +95,6 @@ type File struct {
 	// Nominal dump duration
 	Duration time.Duration
 
-	// Dump type
 	DumpType DumpType
 
 	// TODO: other things? (file size?)

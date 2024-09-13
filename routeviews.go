@@ -10,44 +10,6 @@ import (
 	"github.com/alistairking/bgpfinder/scraper"
 )
 
-const (
-	ROUTEVIEWS                = "routeviews"
-	ROUTEVIEWS_ARCHIVE_URL    = "http://archive.routeviews.org/"
-	ROUTEVIEWS_COLLECTORS_URL = ROUTEVIEWS_ARCHIVE_URL
-)
-
-var (
-	ROUTEVIEWS_PROJECT = Project{Name: ROUTEVIEWS}
-
-	// These are last-resort overrides to "fix" an out-of-pattern RV
-	// collector name.
-	ROUTEVIEWS_COLLECTOR_OVERRIDES = map[string][2]string{
-		"": {"route-views2", "rv2"},
-	}
-
-	ROUTEVIEWS_DUMP_TYPES = map[DumpType]rvDumpType{
-		DUMP_TYPE_RIB: {
-			DumpType: DUMP_TYPE_RIB,
-			Duration: time.Hour, // ish
-			URL:      "RIBS",
-			Regexp:   rvRIBFileRe,
-		},
-		DUMP_TYPE_UPDATES: {
-			DumpType: DUMP_TYPE_UPDATES,
-			Duration: time.Minute * 15,
-			URL:      "UPDATES",
-			Regexp:   rvUpdatesFileRe,
-		},
-	}
-
-	// Various collector-name parsing regexes
-	// XXX: could collapse these into a single regex perhaps
-	rvCollDigitsOnlyRe = regexp.MustCompile(`^route-views(\d+)$`)
-	rvCollNameRe       = regexp.MustCompile(`^route-views(\d+)?\.([a-zA-Z0-9]+)$`)
-	rvRIBFileRe        = regexp.MustCompile(`^rib\.(\d{8}\.\d{4})\.bz2$`)
-	rvUpdatesFileRe    = regexp.MustCompile(`^updates\.(\d{8}\.\d{4})\.bz2$`)
-)
-
 type rvDumpType struct {
 	DumpType DumpType
 	Duration time.Duration
@@ -55,7 +17,31 @@ type rvDumpType struct {
 	Regexp   *regexp.Regexp
 }
 
-// TODO: Finder implementation for the RouteViews archive
+const (
+	ROUTEVIEWS           = "routeviews"
+	RouteviewsArchiveUrl = "https://archive.routeviews.org/"
+)
+
+var (
+	RouteviewsProject = Project{Name: ROUTEVIEWS}
+
+	ROUTEVIEWS_DUMP_TYPES = map[DumpType]rvDumpType{
+		DumpTypeRib: {
+			DumpType: DumpTypeRib,
+			Duration: time.Hour, // ish
+			URL:      "RIBS",
+			Regexp:   regexp.MustCompile(`^rib\.(\d{8}\.\d{4})\.bz2$`),
+		},
+		DumpTypeUpdates: {
+			DumpType: DumpTypeUpdates,
+			Duration: time.Minute * 15,
+			URL:      "UPDATES",
+			Regexp:   regexp.MustCompile(`^updates\.(\d{8}\.\d{4})\.bz2$`),
+		},
+	}
+)
+
+// RouteViewsFinder implements the Finder interface
 // TODO: refactor a this common caching-finder code out so that RIS and PCH can use it
 type RouteViewsFinder struct {
 	// Cache of collectors
@@ -78,17 +64,20 @@ func NewRouteViewsFinder() *RouteViewsFinder {
 	return f
 }
 
+// Projects Retrieves a list of supported projects
 func (f *RouteViewsFinder) Projects() ([]Project, error) {
-	return []Project{ROUTEVIEWS_PROJECT}, nil
+	return []Project{RouteviewsProject}, nil
 }
 
+// Project Retrieves a specific project by name
 func (f *RouteViewsFinder) Project(name string) (Project, error) {
 	if name == "" || name == ROUTEVIEWS {
-		return ROUTEVIEWS_PROJECT, nil
+		return RouteviewsProject, nil
 	}
 	return Project{}, nil
 }
 
+// Collectors gets a list of collectors for a given project
 func (f *RouteViewsFinder) Collectors(project string) ([]Collector, error) {
 	if project != "" && project != ROUTEVIEWS {
 		return nil, nil
@@ -98,6 +87,7 @@ func (f *RouteViewsFinder) Collectors(project string) ([]Collector, error) {
 	return f.collectors, f.collectorsErr
 }
 
+// Collector Gets a specific collector by name
 func (f *RouteViewsFinder) Collector(name string) (Collector, error) {
 	if f.collectorsErr != nil {
 		return Collector{}, f.collectorsErr
@@ -111,164 +101,99 @@ func (f *RouteViewsFinder) Collector(name string) (Collector, error) {
 		}
 	}
 	// not found
-	return Collector{}, nil
+	return Collector{}, fmt.Errorf("collector not found: %+v", name)
 }
 
-func (f *RouteViewsFinder) Find(query Query) ([]File, error) {
-	// ok, let's figure out which collectors we should query
-	if len(query.Collectors) == 0 {
-		// give them everything we got
-		c, err := f.Collectors("")
-		if err != nil {
-			return nil, err
-		}
-		query.Collectors = c
-	}
-	results := []File{}
-	// RV archives data by collector, so we want to do a collector-first
-	// search
-	for _, coll := range query.Collectors {
-		// we can't trust anything other than the collector
-		// name, so let's fix that
-		fColl, err := f.Collector(coll.Name)
-		if err != nil {
-			return nil, err
-		}
-		if fColl == ZeroCollector {
-			// invalid collector in query
-			return nil, fmt.Errorf("Invalid collector: %+v", coll)
-		}
-		cRes, err := f.findFiles(fColl, query)
-		if err != nil {
-			// TODO: probably don't need to give up the whole
-			// search...
-			return nil, err
-		}
-		if cRes != nil {
-			results = append(results, cRes...)
-		}
-	}
-	return results, nil
-}
-
+// getCollectors fetches all collectors from RouteviewsArchiveUrl
 func (f *RouteViewsFinder) getCollectors() ([]Collector, error) {
 	// If we could find a Go rsync client (not a wrapper) we could just do
 	// `rsync archive.routeviews.org::` and do some light parsing on the
 	// output.
-	//
-	// Alternatively we can parse http://archive.routeviews.org/ and look
-	// for links like
-	// http://archive.routeviews.org/route-views.chicago/bgpdata
-	//
-	// I'd like to not repeat the original mistake we made and would prefer
-	// to call the above collector "chicago" rather than
-	// "route-views.chicago". We can always map these back if we need to for
-	// BGPStream compat.
-	links, err := scraper.ScrapeLinks(ROUTEVIEWS_COLLECTORS_URL)
+	links, err := scraper.ScrapeLinks(RouteviewsArchiveUrl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get collector list: %v", err)
 	}
-	// we're expecting to get things like:
-	// '/route-views.nwax/bgpdata'
-	// but there are odd things like:
-	// '/bgpdata'
-	// and the telnet links like:
-	// 'telnet://route-views.perth.routeviews.org'
-	colls := []Collector{}
+
+	var collectors []Collector
 	for _, link := range links {
-		origLink := link
-		intName := ""
 		if !strings.HasSuffix(link, "/bgpdata") {
 			continue
 		}
 		link = strings.TrimSuffix(link, "/bgpdata")
 		link = strings.TrimPrefix(link, "/")
-		// now we're left with three classes of collector (and one oddball)
-		// '<DIGIT>' => 'rv<DIGIT>'
-		m := rvCollDigitsOnlyRe.FindStringSubmatch(link)
-		if len(m) == 2 {
-			intName = link
-			link = "rv" + m[1]
-		}
-		m = rvCollNameRe.FindStringSubmatch(link)
-		if m != nil {
-			intName = link
-			// route-views.sg
-			link = m[2]
-			if len(m) == 3 {
-				// route-views2.saopaulo
-				link += m[1]
-			}
-		}
-		// 'route-views.<NAME> => '<NAME>'
-		// 'route-views<DIGIT>.<NAME> => '<NAME><DIGIT>'
-		override, exists := ROUTEVIEWS_COLLECTOR_OVERRIDES[link]
-		if exists {
-			intName = override[0]
-			link = override[1]
-		}
-		if intName == "" {
-			return nil, fmt.Errorf("unexpected collector pattern: '%s' ('%s'). "+
-				"Please file a parser bug report at "+
-				"https://github.com/alistairking/bgpfinder/issues", link, origLink)
-		}
-		colls = append(colls, Collector{
-			Project:      ROUTEVIEWS_PROJECT,
-			Name:         link,
-			InternalName: intName,
+
+		// fmt.Println("Debug: link is: ", link)
+
+		collectors = append(collectors, Collector{
+			Project: RouteviewsProject,
+			Name:    link,
 		})
 	}
-	return colls, nil
+	return collectors, nil
 }
 
-func (f *RouteViewsFinder) collURL(coll Collector) string {
-	// RV2 is the only special-case URL (afaik)
-	if coll.Name == "rv2" {
-		return ROUTEVIEWS_ARCHIVE_URL + "bgpdata/"
+// getCollectorURL constructs the collector URL from collector name
+func (f *RouteViewsFinder) getCollectorURL(collector Collector) string {
+	CollectorNameOverride := map[string]string{
+		"route-views2": "",
 	}
-	return ROUTEVIEWS_ARCHIVE_URL + coll.InternalName + "/bgpdata/"
+
+	if override, exists := CollectorNameOverride[collector.Name]; exists {
+		collector.Name = override
+	}
+
+	return RouteviewsArchiveUrl + collector.Name + "/bgpdata/"
 }
 
 func (f *RouteViewsFinder) monthURL(coll Collector, month time.Time) string {
-	return f.collURL(coll) + month.Format("2006.01") + "/"
+	return f.getCollectorURL(coll) + month.Format("2006.01") + "/"
 }
 
 func (f *RouteViewsFinder) dumpTypeURL(coll Collector, month time.Time, rvdt string) string {
 	return f.monthURL(coll, month) + rvdt + "/"
 }
 
-func (f *RouteViewsFinder) dumpTypes(dt DumpType) ([]rvDumpType, error) {
-	if dt == DUMP_TYPE_ANY {
-		all := []rvDumpType{}
-		for _, rvdt := range ROUTEVIEWS_DUMP_TYPES {
-			all = append(all, rvdt)
+// Find BGP dumps matching the specified query
+func (f *RouteViewsFinder) Find(query Query) ([]BGPDump, error) {
+	// Use all collectors if non are specified
+	if len(query.Collectors) == 0 {
+		var err error
+		query.Collectors, err = f.Collectors("")
+		if err != nil {
+			return nil, err
 		}
-		return all, nil
 	}
-	rvt, ok := ROUTEVIEWS_DUMP_TYPES[dt]
-	if !ok {
-		return nil, fmt.Errorf("invalid RouteViews dump type: %v", dt)
+
+	var results []BGPDump
+	for _, collector := range query.Collectors {
+		BGPDump, err := f.findFiles(collector, query)
+		if err != nil {
+			// TODO: probably don't need to give up the whole search
+			return nil, err
+		}
+
+		results = append(results, BGPDump...)
 	}
-	return []rvDumpType{rvt}, nil
+	return results, nil
 }
 
-func (f *RouteViewsFinder) findFiles(coll Collector, query Query) ([]File, error) {
+func (f *RouteViewsFinder) findFiles(coll Collector, query Query) ([]BGPDump, error) {
 	// RV archive is organized by YYYY.MM, so we first iterate
 	// over the months in our query range (there has to be at
 	// least one)
 	//
 	// But first, let's figure out our dump type(s)
-	rvdts, err := f.dumpTypes(query.DumpType)
+	rvdts, err := f.getDumpType(query.DumpType)
 	if err != nil {
 		return nil, err
 	}
 
-	res := []File{}
+	res := []BGPDump{}
 	cur := query.From
 	for cur.Before(query.Until) {
 		for _, rvdt := range rvdts {
 			dtUrl := f.dumpTypeURL(coll, cur, rvdt.URL)
-			baseF := File{
+			baseF := BGPDump{
 				URL:       dtUrl,
 				Collector: coll,
 				Duration:  rvdt.Duration,
@@ -285,7 +210,7 @@ func (f *RouteViewsFinder) findFiles(coll Collector, query Query) ([]File, error
 	return res, nil
 }
 
-func (f *RouteViewsFinder) findFilesForURL(res []File, baseFile File, rvdt rvDumpType, query Query) ([]File, error) {
+func (f *RouteViewsFinder) findFilesForURL(res []BGPDump, baseFile BGPDump, rvdt rvDumpType, query Query) ([]BGPDump, error) {
 	// Here we have something like:
 	// url=http://archive.routeviews.org/route-views3/bgpdata/2020.09/RIBS/
 	// now we need to grab the files there and figure out which
@@ -317,4 +242,23 @@ func (f *RouteViewsFinder) findFilesForURL(res []File, baseFile File, rvdt rvDum
 		}
 	}
 	return res, nil
+}
+
+// getDumpType determines the BGP dump types that should be searched for based on the input DumpType.
+// If the input is DumpTypeAny, it returns all available dump types (RIB and UPDATES) for RouteViews.
+// If a specific DumpType is provided, it returns a slice containing that dump type, or an error if
+// the dump type is invalid.
+func (f *RouteViewsFinder) getDumpType(dt DumpType) ([]rvDumpType, error) {
+	if dt == DumpTypeAny {
+		all := []rvDumpType{}
+		for _, rvdt := range ROUTEVIEWS_DUMP_TYPES {
+			all = append(all, rvdt)
+		}
+		return all, nil
+	}
+	rvt, ok := ROUTEVIEWS_DUMP_TYPES[dt]
+	if !ok {
+		return nil, fmt.Errorf("invalid RouteViews dump type: %v", dt)
+	}
+	return []rvDumpType{rvt}, nil
 }
