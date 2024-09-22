@@ -122,7 +122,10 @@ func (f *RouteViewsFinder) getCollectors() ([]Collector, error) {
 		link = strings.TrimSuffix(link, "/bgpdata")
 		link = strings.TrimPrefix(link, "/")
 
-		// fmt.Println("Debug: link is: ", link)
+		// Handle the only special case for now. This is needed because collector.Name is used in other places
+		if link == "" {
+			link = "route-views2"
+		}
 
 		collectors = append(collectors, Collector{
 			Project: RouteviewsProject,
@@ -134,12 +137,14 @@ func (f *RouteViewsFinder) getCollectors() ([]Collector, error) {
 
 // getCollectorURL constructs the collector URL from collector name
 func (f *RouteViewsFinder) getCollectorURL(collector Collector) string {
+	// usually a collector's url is https://archive.routeviews.org/<collector.Name>bgpdata/
+	// but for route-views2, the url is https://archive.routeviews.org/bgpdata/
 	CollectorNameOverride := map[string]string{
 		"route-views2": "",
 	}
 
 	if override, exists := CollectorNameOverride[collector.Name]; exists {
-		collector.Name = override
+		return RouteviewsArchiveUrl + override + "/bgpdata/"
 	}
 
 	return RouteviewsArchiveUrl + collector.Name + "/bgpdata/"
@@ -155,7 +160,7 @@ func (f *RouteViewsFinder) dumpTypeURL(coll Collector, month time.Time, rvdt str
 
 // Find BGP dumps matching the specified query
 func (f *RouteViewsFinder) Find(query Query) ([]BGPDump, error) {
-	// Use all collectors if non are specified
+	// Use all collectors if none are specified
 	if len(query.Collectors) == 0 {
 		var err error
 		query.Collectors, err = f.Collectors("")

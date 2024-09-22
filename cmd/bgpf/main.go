@@ -60,8 +60,8 @@ func (p *CollectorsCmd) Run(log bgpfinder.Logger, cli BgpfCLI) error {
 type FilesCmd struct {
 	// TODO: we can support multiple projects. This whole CLI
 	// needs some thought and love about how to make it usable.
-	Project    string             `help:"Find files for the given project" required`
-	Collectors []string           `help:"Find files for the given collector" required`
+	Project    string             `help:"Find files for the given project"`
+	Collectors []string           `help:"Find files for the given collector"`
 	From       string             `help:"Minimum time to search for (inclusive)" required`
 	Until      string             `help:"Maximum time to search for (exclusive)" required`
 	Type       bgpfinder.DumpType `help:"Dump type to find (${enum})" default:"${dump_type_def}" enum:"${dump_type_opts}"`
@@ -79,16 +79,47 @@ func (c *FilesCmd) Run(log bgpfinder.Logger, cli BgpfCLI) error {
 		return fmt.Errorf("failed to parse 'until' time: %v", err)
 	}
 
-	project := bgpfinder.Project{Name: c.Project}
-	collectors := []bgpfinder.Collector{}
+	// Retrieve projects
+	var projects []bgpfinder.Project
+	if c.Project == "" {
+		// No project specified, get all projects
+		projects, err = bgpfinder.Projects()
+		if err != nil {
+			return fmt.Errorf("failed to get projects: %v", err)
+		}
+	} else {
+		// Use the specified project
+		projects = []bgpfinder.Project{{Name: c.Project}}
+	}
 
-	for _, c := range c.Collectors {
-		collectors = append(collectors,
-			bgpfinder.Collector{
-				Project: project,
-				Name:    c,
-			},
-		)
+	// Build the list of collectors
+	var collectors []bgpfinder.Collector
+	for _, project := range projects {
+		// Retrieve collectors for each project
+		projectCollectors, err := bgpfinder.Collectors(project.Name)
+		if err != nil {
+			return fmt.Errorf("failed to get collectors for project %s: %v", project.Name, err)
+		}
+
+		if len(c.Collectors) == 0 {
+			// No collectors specified, use all collectors from the project
+			collectors = append(collectors, projectCollectors...)
+		} else {
+			// Collectors specified, filter collectors for the project
+			for _, collector := range projectCollectors {
+				for _, collectorName := range c.Collectors {
+					if collector.Name == collectorName {
+						collectors = append(collectors, collector)
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// Check if any collectors were found
+	if len(collectors) == 0 {
+		return fmt.Errorf("no collectors found for the specified parameters")
 	}
 
 	query := bgpfinder.Query{
@@ -107,6 +138,7 @@ func (c *FilesCmd) Run(log bgpfinder.Logger, cli BgpfCLI) error {
 		}
 		return fmt.Errorf("failed to find files: %v. query: %s", err.Error(), qStr)
 	}
+
 	for _, f := range files {
 		switch cli.Format {
 		case "json":

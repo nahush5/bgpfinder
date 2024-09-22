@@ -116,26 +116,37 @@ func (m *MultiFinder) Collector(name string) (Collector, error) {
 }
 
 func (m *MultiFinder) Find(query Query) ([]BGPDump, error) {
-	dumps := []BGPDump{}
+	var dumps []BGPDump
 
-	// Extract the project name from the query's collectors
 	if len(query.Collectors) == 0 {
 		return nil, fmt.Errorf("no collectors specified in query")
 	}
-	projectName := query.Collectors[0].Project.Name
 
-	// Get the appropriate finder for the specified project
-	finder, exists := m.getFinderByProject(projectName)
-	if !exists {
-		return nil, fmt.Errorf("unknown project: '%s'", projectName)
+	// Group collectors by project
+	projectCollectors := make(map[string][]Collector)
+	for _, collector := range query.Collectors {
+		projectName := collector.Project.Name
+		projectCollectors[projectName] = append(projectCollectors[projectName], collector)
 	}
 
-	// Perform the search using the appropriate finder
-	dump, err := finder.Find(query)
-	if err != nil {
-		return nil, fmt.Errorf("find failed for %s: %v", projectName, err)
+	// For each project, get the finder and call Find
+	for projectName, collectors := range projectCollectors {
+		finder, exists := m.getFinderByProject(projectName)
+		if !exists {
+			return nil, fmt.Errorf("unknown project: '%s'", projectName)
+		}
+
+		// Create a project-specific query
+		projectQuery := query
+		projectQuery.Collectors = collectors
+
+		// Perform the search using the appropriate finder
+		dump, err := finder.Find(projectQuery)
+		if err != nil {
+			return nil, fmt.Errorf("find failed for %s: %v", projectName, err)
+		}
+		dumps = append(dumps, dump...)
 	}
-	dumps = append(dumps, dump...)
 
 	return dumps, nil
 }

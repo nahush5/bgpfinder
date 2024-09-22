@@ -15,11 +15,13 @@ const (
 	// RISCollectorsUrl : it's tempting, but we can't use
 	// https://www.ris.ripe.net/peerlist/ because it only lists
 	// currently-active collectors.
-	RISCollectorsUrl = "https://ris.ripe.net/docs/route-collectors/"
+	RISCollectorsUrl  = "https://ris.ripe.net/docs/route-collectors/"
+	RISUpdateDuration = time.Hour
+	RISRibDuration    = time.Minute * 15
 )
 
 var (
-	RIS_PROJECT   = Project{Name: RIS}
+	RisProject    = Project{Name: RIS}
 	risRRCPattern = regexp.MustCompile(`(rrc\d\d)`)
 )
 
@@ -45,12 +47,12 @@ func NewRISFinder() *RISFinder {
 }
 
 func (f *RISFinder) Projects() ([]Project, error) {
-	return []Project{RIS_PROJECT}, nil
+	return []Project{RisProject}, nil
 }
 
 func (f *RISFinder) Project(name string) (Project, error) {
 	if name == "" || name == RIS {
-		return RIS_PROJECT, nil
+		return RisProject, nil
 	}
 	return Project{}, nil
 }
@@ -106,7 +108,7 @@ func (f *RISFinder) Find(query Query) ([]BGPDump, error) {
 		for _, dateDir := range dateDirs {
 			date, err := time.Parse("2006.01", strings.TrimSuffix(dateDir, "/"))
 			if err != nil {
-				// some dateDir do not conform to the format and can be safely ignored
+				// some dateDir such as logs/, latest/ do not conform to the format and can be safely ignored
 				continue
 			}
 
@@ -152,7 +154,7 @@ func (f *RISFinder) scrapeFilesFromDateDir(dateDirLink string, allowedPrefixes [
 						results = append(results, BGPDump{
 							URL:       dateDirLink + file,
 							Collector: collector,
-							Duration:  time.Minute * 15,
+							Duration:  RISUpdateDuration,
 							DumpType:  DumpTypeUpdates,
 						})
 					}
@@ -160,7 +162,7 @@ func (f *RISFinder) scrapeFilesFromDateDir(dateDirLink string, allowedPrefixes [
 						results = append(results, BGPDump{
 							URL:       dateDirLink + file,
 							Collector: collector,
-							Duration:  time.Hour,
+							Duration:  RISRibDuration,
 							DumpType:  DumpTypeRib,
 						})
 					}
@@ -186,7 +188,7 @@ func (f *RISFinder) getCollectors() ([]Collector, error) {
 		}
 		// fmt.Printf("Debug: link:%s, m:%s\n", link, m)
 		collectors = append(collectors, Collector{
-			Project: RIS_PROJECT,
+			Project: RisProject,
 			Name:    m[1],
 		})
 	}
