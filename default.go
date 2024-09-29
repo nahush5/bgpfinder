@@ -34,6 +34,6 @@ func GetCollector(name string) (Collector, error) {
 	return DefaultFinder.Collector(name)
 }
 
-func Find(query Query) ([]File, error) {
+func Find(query Query) ([]BGPDump, error) {
 	return DefaultFinder.Find(query)
 }

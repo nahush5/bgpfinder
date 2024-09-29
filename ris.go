@@ -3,24 +3,25 @@ package bgpfinder
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/alistairking/bgpfinder/scraper"
 )
 
 const (
-	RIS             = "ris"
-	RIS_ARCHIVE_URL = "https://data.ris.ripe.net/"
-	// XXX: it's tempting, but we can't use
+	RIS = "ris"
+	// RISCollectorsUrl : it's tempting, but we can't use
 	// https://www.ris.ripe.net/peerlist/ because it only lists
 	// currently-active collectors.
-	RIS_COLLECTORS_URL = RIS_ARCHIVE_URL
+	RISCollectorsUrl  = "https://ris.ripe.net/docs/route-collectors/"
+	RISUpdateDuration = time.Hour
+	RISRibDuration    = time.Minute * 15
 )
 
 var (
-	RIS_PROJECT = Project{Name: RIS}
-
-	// RIS collectors are easy to find...
+	RisProject    = Project{Name: RIS}
 	risRRCPattern = regexp.MustCompile(`(rrc\d\d)`)
 )
 
@@ -46,12 +47,12 @@ func NewRISFinder() *RISFinder {
 }
 
 func (f *RISFinder) Projects() ([]Project, error) {
-	return []Project{RIS_PROJECT}, nil
+	return []Project{RisProject}, nil
 }
 
 func (f *RISFinder) Project(name string) (Project, error) {
 	if name == "" || name == RIS {
-		return RIS_PROJECT, nil
+		return RisProject, nil
 	}
 	return Project{}, nil
 }
@@ -80,34 +81,120 @@ func (f *RISFinder) Collector(name string) (Collector, error) {
 	return Collector{}, nil
 }
 
-func (f *RISFinder) Find(query Query) ([]File, error) {
-	// TODO
-	return nil, nil
+// Find the BGP data corresponding to the query
+// The naming scheme for BGP data is as follows:
+// https://data.ris.ripe.net/rrcXX/YYYY.MM/TYPE.YYYYMMDD.HHmm.gz
+func (f *RISFinder) Find(query Query) ([]BGPDump, error) {
+	var results []BGPDump
+	var allowedPrefixes []string
+
+	if query.DumpType == DumpTypeRib || query.DumpType == DumpTypeAny {
+		allowedPrefixes = append(allowedPrefixes, "bview.")
+	}
+	if query.DumpType == DumpTypeUpdates || query.DumpType == DumpTypeAny {
+		allowedPrefixes = append(allowedPrefixes, "updates.")
+	}
+
+	for _, collector := range query.Collectors {
+		// baseURL: https://data.ris.ripe.net/rrcXX
+		baseUrl := "https://data.ris.ripe.net/" + collector.Name
+		fmt.Println("Scraping ", baseUrl)
+		dateDirs, err := scraper.ScrapeLinks(baseUrl)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scrape %s : %v", baseUrl, err)
+		}
+
+		// dateDir: YYYY.MM
+		for _, dateDir := range dateDirs {
+			date, err := time.Parse("2006.01", strings.TrimSuffix(dateDir, "/"))
+			if err != nil {
+				// some dateDir such as logs/, latest/ do not conform to the format and can be safely ignored
+				continue
+			}
+
+			if dateInRange(date, query) {
+				dateDirLink := baseUrl + "/" + dateDir
+				dateDirResults, err := f.scrapeFilesFromDateDir(dateDirLink, allowedPrefixes, collector, query)
+				if err != nil {
+					fmt.Printf("Warning: failed to process %s: %v\n", dateDirLink, err)
+					continue
+				}
+				results = append(results, dateDirResults...)
+
+			}
+		}
+	}
+	return results, nil
 }
 
+// scrapeFilesFromDateDir
+func (f *RISFinder) scrapeFilesFromDateDir(dateDirLink string, allowedPrefixes []string, collector Collector, query Query) ([]BGPDump, error) {
+	var results []BGPDump
+
+	fmt.Println("Scraping ", dateDirLink)
+	files, err := scraper.ScrapeLinks(dateDirLink)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scrape %s: %v", dateDirLink, err)
+	}
+
+	// file: TYPE.YYYYMMDD.HHmm.gz
+	for _, file := range files {
+		for _, prefix := range allowedPrefixes {
+			if strings.HasPrefix(file, prefix) {
+				parts := strings.Split(file, ".")
+				fileType := parts[0]
+				fileDateStr := parts[1] // "20060101"
+				fileDate, err := time.Parse("20060102", fileDateStr)
+				if err != nil {
+					fmt.Printf("Error parsing date %s from file %s: %v\n", fileDateStr, file, err)
+					continue
+				}
+				if dateInRange(fileDate, query) {
+					if fileType == "updates" {
+						results = append(results, BGPDump{
+							URL:       dateDirLink + file,
+							Collector: collector,
+							Duration:  RISUpdateDuration,
+							DumpType:  DumpTypeUpdates,
+						})
+					}
+					if fileType == "bview" || fileType == "view" {
+						results = append(results, BGPDump{
+							URL:       dateDirLink + file,
+							Collector: collector,
+							Duration:  RISRibDuration,
+							DumpType:  DumpTypeRib,
+						})
+					}
+				}
+			}
+		}
+	}
+	return results, nil
+}
+
+// getCollectors fetches ALL Ris collectors
 func (f *RISFinder) getCollectors() ([]Collector, error) {
-	links, err := scraper.ScrapeLinks(RIS_COLLECTORS_URL)
+	links, err := scraper.ScrapeLinks(RISCollectorsUrl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get collector list: %v", err)
 	}
-	// RRCs are easy to find.. perhaps a little too easy.. so let's throw
-	// away dups
-	seen := map[string]struct{}{}
-	colls := []Collector{}
+
+	var collectors []Collector
 	for _, link := range links {
 		m := risRRCPattern.FindStringSubmatch(link)
 		if len(m) != 2 {
 			continue
 		}
-		c := m[1]
-		if _, exists := seen[c]; !exists {
-			colls = append(colls, Collector{
-				Project:      RIS_PROJECT,
-				Name:         m[1],
-				InternalName: m[1],
-			})
-			seen[c] = struct{}{}
-		}
+		// fmt.Printf("Debug: link:%s, m:%s\n", link, m)
+		collectors = append(collectors, Collector{
+			Project: RisProject,
+			Name:    m[1],
+		})
 	}
-	return colls, nil
+	return collectors, nil
+}
+
+func dateInRange(date time.Time, query Query) bool {
+	return (date.Equal(query.From) || date.After(query.From)) && date.Before(query.Until)
 }
