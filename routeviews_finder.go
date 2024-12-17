@@ -233,6 +233,7 @@ func (f *RouteViewsFinder) scrapeFilesFromDir(dir string, prefix string, collect
 				Collector: collector,
 				Duration:  getDurationFromPrefix(prefix),
 				DumpType:  getDumpTypeFromPrefix(prefix),
+				Timestamp: timestamp.Unix(),
 			})
 		}
 	}

@@ -90,17 +90,19 @@ type Query struct {
 // BGPDump represents a single BGP file found by a Finder.
 type BGPDump struct {
 	// URL of the file
-	URL string
+	URL string `json:"url"`
 
 	// Collector that collected this file
-	Collector Collector
+	Collector Collector `json:"collector"`
 
 	// Nominal dump duration
-	Duration time.Duration
+	Duration time.Duration `json:"duration"`
 
-	DumpType DumpType
+	// Type of dump (RIB or Updates)
+	DumpType DumpType `json:"type"`
 
-	// TODO: other things? (file size?)
+	// Timestamp of when this dump was created (seconds since epoch)
+	Timestamp int64 `json:"timestamp"`
 }
 
 // monthInRange checks if any part of the month overlaps with the query range

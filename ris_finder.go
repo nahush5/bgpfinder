@@ -155,6 +155,7 @@ func (f *RISFinder) scrapeFilesFromDir(dir string, allowedPrefixes []string, col
 						Collector: collector,
 						Duration:  getDurationFromPrefix(prefix),
 						DumpType:  getDumpTypeFromPrefix(prefix),
+						Timestamp: timestamp.Unix(),
 					})
 				}
 			}
