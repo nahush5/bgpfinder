@@ -2,15 +2,10 @@ CREATE TABLE IF NOT EXISTS collectors (
     collector_id SERIAL PRIMARY KEY,
     name VARCHAR(255) UNIQUE NOT NULL,
     project_name VARCHAR(255) NOT NULL,
-<<<<<<< HEAD
     cdate TIMESTAMP NOT NULL DEFAULT NOW(),
     mdate TIMESTAMP NOT NULL DEFAULT NOW(),
     most_recent_file_timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
     last_completed_crawl_time TIMESTAMP NOT NULL DEFAULT NOW()
-=======
-    last_fetch_timestamp TIMESTAMP,
-    last_request_timestamp TIMESTAMP
->>>>>>> e113863 (Adding more timestamp fields)
 );
 
 CREATE TABLE IF NOT EXISTS bgp_dumps (
