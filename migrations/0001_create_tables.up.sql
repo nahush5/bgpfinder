@@ -1,7 +1,8 @@
 CREATE TABLE IF NOT EXISTS collectors (
     collector_id SERIAL PRIMARY KEY,
     name VARCHAR(255) UNIQUE NOT NULL,
-    project_name VARCHAR(255) NOT NULL
+    project_name VARCHAR(255) NOT NULL,
+    last_prefetch_timestamp TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS bgp_dumps (
