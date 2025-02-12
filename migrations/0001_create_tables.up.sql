@@ -2,8 +2,8 @@ CREATE TABLE IF NOT EXISTS collectors (
     collector_id SERIAL PRIMARY KEY,
     name VARCHAR(255) UNIQUE NOT NULL,
     project_name VARCHAR(255) NOT NULL,
-    last_fetch_timestamp TIMESTAMP,
-    last_request_timestamp TIMESTAMP
+    last_fetch_timestamp TIMESTAMP NOT NULL DEFAULT GETDATE(),
+    last_request_timestamp TIMESTAMP NOT NULL DEFAULT GETDATE()
 );
 
 CREATE TABLE IF NOT EXISTS bgp_dumps (
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS bgp_dumps (
     dump_type SMALLINT NOT NULL,
     duration INTERVAL,
     timestamp TIMESTAMP NOT NULL,
-    first_fetch_timestamp TIMESTAMP,
-    last_fetch_timestamp TIMESTAMP,
+    first_fetch_timestamp TIMESTAMP NOT NULL DEFAULT GETDATE(),
+    last_fetch_timestamp TIMESTAMP NOT NULL DEFAULT GETDATE(),
     CONSTRAINT unique_bgp_dump UNIQUE (collector_name, url)
 );
