@@ -11,7 +11,7 @@ import (
 )
 
 // UpsertCollectors inserts or updates collector records.
-func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, collectors []Collector, currentTime *int64) error {
+func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, collectors []Collector, currentTime *int64, isCrawler bool) error {
 	if currentTime == nil {
 		return fmt.Errorf("Error occurred: currentTime passed was nil")
 	}
@@ -23,13 +23,18 @@ func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.P
 	}
 	defer tx.Rollback(ctx)
 
+	var timestamp string
+	fmt.Sprintf(timestamp, "last_request_timestamp")
+	if isCrawler {
+		fmt.Sprintf(timestamp, "last_fetch_timestamp")
+	}
+
 	stmt := `
-        INSERT INTO collectors (name, project_name, last_fetch_timestamp)
+        INSERT INTO collectors (name, project_name,)` + timestamp + `
         VALUES ($1, $2, to_timestamp($3))
         ON CONFLICT (name) DO UPDATE
         SET project_name = EXCLUDED.project_name
-		SET last_fetch_timestamp = EXCLUDED.last_fetch_timestamp
-    `
+		SET ` + timestamp + ` = EXCLUDED.` + timestamp
 
 	logger.Info().Int("collector_count", len(collectors)).Msg("Upserting collectors into DB")
 	for _, c := range collectors {

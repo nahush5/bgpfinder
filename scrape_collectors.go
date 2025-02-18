@@ -63,7 +63,7 @@ func UpdateCollectorsData(ctx context.Context, logger *logging.Logger, db *pgxpo
 
 		currentTime := time.Now().UTC().Unix()
 
-		if err := UpsertCollectors(ctx, logger, db, collectors, &currentTime); err != nil {
+		if err := UpsertCollectors(ctx, logger, db, collectors, &currentTime, true); err != nil {
 			logger.Error().Err(err).Str("project", project.Name).Msg("Failed to upsert collectors")
 			continue
 		}
