@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS bgp_dumps (
     dump_type SMALLINT NOT NULL,
     duration INTERVAL,
     timestamp TIMESTAMP NOT NULL,
-    first_fetch_timestamp TIMESTAMP NOT NULL DEFAULT GETDATE(),
-    last_fetch_timestamp TIMESTAMP NOT NULL DEFAULT GETDATE(),
+    first_fetch_timestamp TIMESTAMP DEFAULT NOT NULL GETDATE(),
+    last_fetch_timestamp TIMESTAMP DEFAULT NOT NULL GETDATE(),
     CONSTRAINT unique_bgp_dump UNIQUE (collector_name, url)
 );
