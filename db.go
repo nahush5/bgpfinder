@@ -82,7 +82,7 @@ func UpsertBGPDumps(ctx context.Context, logger *logging.Logger, db *pgxpool.Poo
 		`
 
 		for _, d := range batch {
-			_, err := tx.Exec(ctx, stmt, d.Collector.Name, d.URL, int16(d.DumpType), d.Duration, d.Timestamp)
+			_, err := tx.Exec(ctx, stmt, d.Collector.Name, d.URL, int16(d.DumpType), d.Duration, d.Timestamp, *currentTime, *currentTime)
 			if err != nil {
 				logger.Error().Err(err).Str("collector", d.Collector.Name).Str("url", d.URL).Msg("Failed to execute upsert for BGP dump")
 				tx.Rollback(ctx)
