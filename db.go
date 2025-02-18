@@ -11,7 +11,6 @@ import (
 
 // UpsertCollectors inserts or updates collector records.
 func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, collectors []Collector) error {
-
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to begin transaction for UpsertCollectors")
