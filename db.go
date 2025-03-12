@@ -21,7 +21,7 @@ func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.P
 	// Define the SQL query
 	stmt := `
 		INSERT INTO collectors (name, project_name, cdate, mdate, last_completed_crawl_time, most_recent_file_timestamp)
-		VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, COALESCE((SELECT max(timestamp) FROM bgp_dumps WHERE collector_name = $3), CURRENT_TIMESTAMP))
+		VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, COALESCE((SELECT max(timestamp) FROM bgp_dumps WHERE collector_name = $3), 0))
 		ON CONFLICT (name) DO UPDATE
 		SET project_name = EXCLUDED.project_name,
 			mdate = EXCLUDED.mdate,
@@ -32,9 +32,8 @@ func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.P
 	logger.Info().Int("collector_count", len(collectors)).Msg("Upserting collectors into DB")
 	for _, c := range collectors {
 		logger.Debug().Str("collector", c.Name).Str("project", c.Project.Name).Msg("Executing upsert for collector")
-		collectorName := c.Project.Name
-
-		ct, err := tx.Exec(ctx, stmt, c.Name, collectorName, collectorName)
+		collectorName := c.Name
+		ct, err := tx.Exec(ctx, stmt, collectorName, c.Project.Name, collectorName)
 		if err != nil {
 			logger.Error().Err(err).Str("collector", c.Name).Msg("Failed to execute upsert")
 			return err
