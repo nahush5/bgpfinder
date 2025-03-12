@@ -21,7 +21,7 @@ func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.P
 	// Define the SQL query
 	stmt := `
 		INSERT INTO collectors (name, project_name, cdate, mdate, last_completed_crawl_time, most_recent_file_timestamp)
-		VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, COALESCE((SELECT max(timestamp) FROM bgp_dumps WHERE collector_name = $3), 0))
+		VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, COALESCE((SELECT max(timestamp) FROM bgp_dumps WHERE collector_name = $3), '1970-01-01 00:00:00'))
 		ON CONFLICT (name) DO UPDATE
 		SET project_name = EXCLUDED.project_name,
 			mdate = EXCLUDED.mdate,
