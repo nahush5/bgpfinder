@@ -118,7 +118,7 @@ func runDb(ctx context.Context,
 
 	// Iterate over rows
 	var collectors []bgpfinder.Collector
-	var time []time.Time
+	var timeArray []time.Time
 
 	for rows.Next() {
 		var collector bgpfinder.Collector
@@ -131,7 +131,7 @@ func runDb(ctx context.Context,
 
 		fmt.Printf("Collector: %s, Last Completed Crawl Time: %s\n", collector, lastCompletedCrawlTime)
 		collectors = append(collectors, collector)
-		time = append(time, lastCompletedCrawlTime)
+		timeArray = append(timeArray, lastCompletedCrawlTime)
 	}
 
 	// Check for errors after iteration
@@ -139,7 +139,7 @@ func runDb(ctx context.Context,
 		log.Fatalf("Row iteration error: %v", err)
 	}
 
-	return collectors, time, nil
+	return collectors, timeArray, nil
 }
 
 func getRetryInterval(project string, isRibs bool) int64 {
