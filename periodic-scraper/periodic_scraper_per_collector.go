@@ -17,23 +17,24 @@ func PeriodicScraper(ctx context.Context,
 	collectors []bgpfinder.Collector,
 	db *pgxpool.Pool,
 	finder bgpfinder.Finder,
-	isRibsData bool) {
+	isRibsData bool) error {
 
 	var successfullyWrittenCollectors []bgpfinder.Collector
 
 	for i := 0; i < len(collectors); i++ {
 		if err := ScrapeCollector(ctx, logger, retryMultInterval, prevRuntimes[i], collectors[i], db, finder, isRibsData); err != nil {
 			logger.Error().Err(err).Str("collector", collectors[i].Name).Msg("Failed to upsert dumps")
+			continue
 		}
 		successfullyWrittenCollectors = append(successfullyWrittenCollectors, collectors[i])
 	}
 
-	bgpfinder.UpsertCollectors(ctx, logger, db, successfullyWrittenCollectors)
+	return bgpfinder.UpsertCollectors(ctx, logger, db, successfullyWrittenCollectors)
 }
 
 // PeriodicScraper starts a goroutine that scraps the collectors for data.
 // startTime defines the start time from which we collect the for.
-// retryInterval defines the interval for retry.
+// retryMultInterval defines the interval for exponential retry
 // finder defines the finder.
 // isRibsData tells us if it is a Ribs data we want to collect or updates data.
 func ScrapeCollector(ctx context.Context,

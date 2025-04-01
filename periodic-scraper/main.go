@@ -1,35 +1,59 @@
 package periodicscraper
 
 import (
-	"fmt"
-	"os"
-	"strconv"
+	"context"
+	"time"
+
+	"github.com/alistairking/bgpfinder"
+	"github.com/alistairking/bgpfinder/internal/logging"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
-	args := os.Args
+	ctx := setupContext()
+	logger := setupLogger()
+	db := setupDB(logger)
 
-	// Check if there are enough arguments
-	if len(args) != 3 {
-		fmt.Println("Usage: <program> <project-name> <is-ribs>")
-		return
-	}
+	tickerRipeRisRibs := time.NewTicker(time.Duration(risRibsInterval))
+	tickerRipeRisUpdates := time.NewTicker(time.Duration(risUpdatesInterval))
+	tickerRipeRouteViewsRibs := time.NewTicker(time.Duration(routeviewRibsInterval))
+	tickerRipeRouteViewsUpdates := time.NewTicker(time.Duration(routeviewUpdatesInterval))
 
-	isRibs, err := strconv.ParseBool(args[2])
+	go func() {
+		for {
+			select {
+			case <-tickerRipeRisRibs.C:
+				driver(ctx, logger, db, RIS, true)
+			case <-tickerRipeRisUpdates.C:
+				driver(ctx, logger, db, RIS, false)
+			case <-tickerRipeRouteViewsRibs.C:
+				driver(ctx, logger, db, ROUTEVIEWS, true)
+			case <-tickerRipeRouteViewsUpdates.C:
+				driver(ctx, logger, db, ROUTEVIEWS, false)
+			case <-ctx.Done():
+				logger.Info().Msg("Stopping periodic scraping due to context cancellation")
+				tickerRipeRisRibs.Stop()
+				tickerRipeRisUpdates.Stop()
+				tickerRipeRouteViewsRibs.Stop()
+				tickerRipeRouteViewsUpdates.Stop()
+				return
+			}
+		}
+	}()
+}
 
+func driver(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, collector string, isRibs bool) {
+	logger.Info().Msgf("Starting periodic collectors data for %s isribs: %t", collector, isRibs)
+	collectors, prevRuntimes, err := runDb(ctx, logger, db, collector)
 	if err != nil {
-		fmt.Println("Error parsing ribs/updates argument:", err)
-		return
+		logger.Error().Err(err).Msgf("Failed to run db %s isribs: %t data for collectors", collector, isRibs)
+	} else {
+		logger.Info().Msgf("Run of db %s isribs: %t completed successfully", collector, isRibs)
 	}
-
-	switch args[1] {
-	case ROUTEVIEWS:
-		routeViewsDriver(isRibs)
-		break
-	case RIS:
-		risDriver(isRibs)
-		break
-	default:
-		fmt.Println("Incorrect project argument: %s", args[1])
+	err = PeriodicScraper(ctx, logger, getRetryInterval(collector, isRibs), prevRuntimes, collectors, db, bgpfinder.NewRouteViewsFinder(), isRibs)
+	if err != nil {
+		logger.Error().Err(err).Msgf("Failed to run periodic scraper %s isribs: %t data for collectors", collector, isRibs)
+	} else {
+		logger.Info().Msgf("Run of periodic scraper %s isribs: %t completed successfully", collector, isRibs)
 	}
 }
