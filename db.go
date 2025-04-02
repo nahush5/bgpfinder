@@ -2,6 +2,7 @@ package bgpfinder
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -10,7 +11,11 @@ import (
 )
 
 // UpsertCollectors inserts or updates collector records.
-func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, collectors []Collector) error {
+func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, collectors []Collector, currentTime *int64, isCrawler bool) error {
+	if currentTime == nil {
+		return fmt.Errorf("Error occurred: currentTime passed was nil")
+	}
+
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to begin transaction for UpsertCollectors")
@@ -18,17 +23,23 @@ func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.P
 	}
 	defer tx.Rollback(ctx)
 
+	var timestamp string
+	fmt.Sprintf(timestamp, "last_request_timestamp")
+	if isCrawler {
+		fmt.Sprintf(timestamp, "last_fetch_timestamp")
+	}
+
 	stmt := `
-        INSERT INTO collectors (name, project_name)
-        VALUES ($1, $2)
+        INSERT INTO collectors (name, project_name,)` + timestamp + `
+        VALUES ($1, $2, to_timestamp($3))
         ON CONFLICT (name) DO UPDATE
         SET project_name = EXCLUDED.project_name
-    `
+		SET ` + timestamp + ` = EXCLUDED.` + timestamp
 
 	logger.Info().Int("collector_count", len(collectors)).Msg("Upserting collectors into DB")
 	for _, c := range collectors {
 		logger.Debug().Str("collector", c.Name).Str("project", c.Project.Name).Msg("Executing upsert for collector")
-		ct, err := tx.Exec(ctx, stmt, c.Name, c.Project.Name)
+		ct, err := tx.Exec(ctx, stmt, c.Name, c.Project.Name, *currentTime)
 		if err != nil {
 			logger.Error().Err(err).Str("collector", c.Name).Msg("Failed to execute upsert")
 			return err
@@ -47,7 +58,11 @@ func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.P
 }
 
 // UpsertBGPDumps inserts or updates BGP dump records in batches.
-func UpsertBGPDumps(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, dumps []BGPDump) error {
+func UpsertBGPDumps(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, dumps []BGPDump, currentTime *int64) error {
+	if currentTime == nil {
+		return fmt.Errorf("Error occurred: currentTime passed was nil")
+	}
+
 	const batchSize = 10000 // Define an appropriate batch size
 
 	total := len(dumps)
@@ -66,16 +81,17 @@ func UpsertBGPDumps(ctx context.Context, logger *logging.Logger, db *pgxpool.Poo
 		}
 
 		stmt := `
-			INSERT INTO bgp_dumps (collector_name, url, dump_type, duration, timestamp)
-			VALUES ($1, $2, $3, $4, to_timestamp($5))
+			INSERT INTO bgp_dumps (collector_name, url, dump_type, duration, timestamp, first_fetch_timestamp, last_fetch_timestamp)
+			VALUES ($1, $2, $3, $4, to_timestamp($5), to_timestamp($6), to_timestamp($7))
 			ON CONFLICT (collector_name, url) DO UPDATE
 			SET dump_type = EXCLUDED.dump_type,
 				duration = EXCLUDED.duration,
-				timestamp = EXCLUDED.timestamp
+				timestamp = EXCLUDED.timestamp,
+				last_fetch_timestamp = EXCLUDED.last_fetch_timestamp
 		`
 
 		for _, d := range batch {
-			_, err := tx.Exec(ctx, stmt, d.Collector.Name, d.URL, int16(d.DumpType), d.Duration, d.Timestamp)
+			_, err := tx.Exec(ctx, stmt, d.Collector.Name, d.URL, int16(d.DumpType), d.Duration, d.Timestamp, *currentTime, *currentTime)
 			if err != nil {
 				logger.Error().Err(err).Str("collector", d.Collector.Name).Str("url", d.URL).Msg("Failed to execute upsert for BGP dump")
 				tx.Rollback(ctx)
