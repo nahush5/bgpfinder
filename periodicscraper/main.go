@@ -9,10 +9,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func main() {
-	ctx := setupContext()
-	logger := setupLogger()
-	db := setupDB(logger)
+func Main(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool) {
+
+	logger.Info().Msg("Starting runn")
 
 	tickerRipeRisRibs := time.NewTicker(time.Duration(risRibsInterval))
 	tickerRipeRisUpdates := time.NewTicker(time.Duration(risUpdatesInterval))
@@ -40,6 +39,9 @@ func main() {
 			}
 		}
 	}()
+
+	<-ctx.Done()
+	logger.Info().Msg("Exiting Main()")
 }
 
 func driver(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, collector string, isRibs bool) {
