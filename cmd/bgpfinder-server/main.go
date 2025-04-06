@@ -17,7 +17,6 @@ import (
 
 	"github.com/alistairking/bgpfinder"
 	"github.com/alistairking/bgpfinder/internal/logging"
-	"github.com/alistairking/bgpfinder/periodicscraper"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -56,7 +55,7 @@ func loadDBConfig(envFile string) (*DBConfig, error) {
 func main() {
 	portPtr := flag.String("port", "8080", "port to listen on")
 	logLevel := flag.String("loglevel", "info", "Log level (debug, info, warn, error)")
-	// scrapeFreq := flag.Duration("scrape-frequency", 168*time.Hour, "Scraping frequency")
+	scrapeFreq := flag.Duration("scrape-frequency", 168*time.Hour, "Scraping frequency")
 	useDB := flag.Bool("use-db", false, "Enable database functionality")
 	envFile := flag.String("env-file", ".env", "Path to .env file (required if use-db is true)")
 	flag.Parse()
@@ -100,8 +99,8 @@ func main() {
 
 	// Start periodic scraping with the configured frequency
 	if *useDB {
-		// bgpfinder.StartPeriodicScraping(ctx, logger, *scrapeFreq, db, bgpfinder.DefaultFinder)
-		periodicscraper.Main(ctx, logger, db)
+		bgpfinder.StartPeriodicScraping(ctx, logger, *scrapeFreq, db, bgpfinder.DefaultFinder)
+		// periodicscraper.Main(ctx, logger, db)
 	}
 
 	// // Handle HTTP requests
