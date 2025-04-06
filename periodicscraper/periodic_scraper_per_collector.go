@@ -47,34 +47,32 @@ func ScrapeCollector(ctx context.Context,
 	isRibsData bool) error {
 
 	allowedRetries := 4
-	retryInterval := retryMultInterval
 
-	for i := 0; i < allowedRetries; i++ {
-		// Run once immediately before waiting for the ticker
-		logger.Info().Msg("Starting period run on collectors data")
-		err := UpsertBgpDumpsForCollector(ctx, logger, db, finder, prevRuntime, collector, isRibsData)
-		if err != nil {
-			logger.Error().Err(err).Msg("Failed to update collectors data on initial run")
-			if i == allowedRetries-1 {
-				return err
-			}
-		} else {
-			logger.Info().Msg("Scraping completed successfully")
-			return nil
-		}
-		time.Sleep(time.Duration(retryInterval))
-		retryInterval = retryMultInterval * retryInterval
+	dumps, err := getDumps(ctx, logger, db, finder, prevRuntime, collector, isRibsData, retryMultInterval, int64(allowedRetries))
+
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to update collectors data on initial run")
+		return err
 	}
+
+	if err := bgpfinder.UpsertBGPDumps(ctx, logger, db, dumps); err != nil {
+		logger.Error().Err(err).Str("collector", collector.Name).Msg("Failed to upsert dumps")
+		return err
+	}
+
+	logger.Info().Msg("Scraping completed successfully")
 	return nil
 }
 
-func UpsertBgpDumpsForCollector(ctx context.Context,
+func getDumps(ctx context.Context,
 	logger *logging.Logger,
 	db *pgxpool.Pool,
 	finder bgpfinder.Finder,
 	prevRunTimeEnd time.Time,
 	collector bgpfinder.Collector,
-	isRibsData bool) error {
+	isRibsData bool,
+	retryInterval int64,
+	allowedRetries int64) ([]bgpfinder.BGPDump, error) {
 
 	logger.Info().Str("collector", collector.Name).Msg("Starting to scrape collector data")
 
@@ -94,21 +92,22 @@ func UpsertBgpDumpsForCollector(ctx context.Context,
 	}
 
 	dumps, err := finder.Find(query)
-	if err != nil {
-		logger.Error().Err(err).Str("collector", collector.Name).Msg("Finder.Find failed")
-		return err
+
+	if err == nil && len(dumps) == 0 {
+		err = fmt.Errorf("didn't recieve enough records for collector %s", collector.Name)
 	}
 
-	if len(dumps) == 0 {
-		return fmt.Errorf("didn't recieve enough records for collector %s", collector.Name)
+	if err != nil {
+		logger.Error().Err(err).Str("collector", collector.Name).Msg("Finder.Find failed")
+		if allowedRetries == 0 {
+			return nil, err
+		}
+		logger.Info().Str("collector", collector.Name).Int("retries left", int(allowedRetries)).Msg("Will retry scraping collectors after sleeping.")
+		time.Sleep(time.Duration(retryInterval))
+		return getDumps(ctx, logger, db, finder, prevRunTimeEnd, collector, isRibsData, 2*retryInterval, allowedRetries-1)
 	}
 
 	logger.Info().Str("collector", collector.Name).Int("dumps_found", len(dumps)).Msg("Found BGP dumps for collector")
 
-	if err := bgpfinder.UpsertBGPDumps(ctx, logger, db, dumps); err != nil {
-		logger.Error().Err(err).Str("collector", collector.Name).Msg("Failed to upsert dumps")
-		return err
-	}
-
-	return nil
+	return dumps, nil
 }
