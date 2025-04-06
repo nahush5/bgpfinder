@@ -10,13 +10,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Main(ctx context.Context,
-	logger *logging.Logger,
-	db *pgxpool.Pool,
-	ripeRisRibsStartTime time.Time,
-	ripeRisUpdatesStartTime time.Time,
-	routeViewsRibsStartTime time.Time,
-	routeViewsUpdatesStartTime time.Time) {
+func Start(logger *logging.Logger, ripeRisRibsStartTime time.Time, ripeRisUpdatesStartTime time.Time, routeViewsRibsStartTime time.Time, routeViewsUpdatesStartTime time.Time) {
+	db := setupDB(logger)
+	ctx := setupContext()
 
 	logger.Info().Msg("Starting runn")
 
@@ -48,15 +44,15 @@ func Main(ctx context.Context,
 	// }()
 
 	// <-ctx.Done()
-	go start(ctx, logger, db, RIS, true, risRibsInterval, ripeRisRibsStartTime)
-	go start(ctx, logger, db, RIS, false, risUpdatesInterval, ripeRisUpdatesStartTime)
-	go start(ctx, logger, db, ROUTEVIEWS, true, routeviewRibsInterval, routeViewsRibsStartTime)
-	go start(ctx, logger, db, ROUTEVIEWS, false, routeviewUpdatesInterval, routeViewsUpdatesStartTime)
+	go startScraping(ctx, logger, db, RIS, true, risRibsInterval, ripeRisRibsStartTime)
+	go startScraping(ctx, logger, db, RIS, false, risUpdatesInterval, ripeRisUpdatesStartTime)
+	go startScraping(ctx, logger, db, ROUTEVIEWS, true, routeviewRibsInterval, routeViewsRibsStartTime)
+	go startScraping(ctx, logger, db, ROUTEVIEWS, false, routeviewUpdatesInterval, routeViewsUpdatesStartTime)
 
 	logger.Info().Msg("Exiting Main()")
 }
 
-func start(ctx context.Context,
+func startScraping(ctx context.Context,
 	logger *logging.Logger,
 	db *pgxpool.Pool,
 	project string,
@@ -67,7 +63,10 @@ func start(ctx context.Context,
 		if ctx.Err() != nil {
 			return
 		}
+		startTime := time.Now()
 		driver(ctx, logger, db, project, isRibsData)
+		elapsedTime := time.Since(startTime)
+		logger.Info().Msgf("Scraping runtime for project %s and isribs %t is %v", project, isRibsData, elapsedTime)
 		time.Sleep(time.Duration(frequency)) // or <-tick.C
 	}
 }
@@ -77,14 +76,14 @@ func waitUntilTimestamp(targetTime time.Time) {
 	duration := targetTime.Sub(now)
 
 	if duration > 0 {
-		time.Sleep(duration)
+		time.Sleep(duration * time.Second)
 	}
 	fmt.Println("Reached target time:", targetTime)
 }
 
 func driver(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, collector string, isRibs bool) {
 	logger.Info().Msgf("Starting periodic collectors data for %s isribs: %t", collector, isRibs)
-	collectors, prevRuntimes, err := runDb(ctx, logger, db, collector)
+	collectors, prevRuntimes, err := getCollectorsAndPrevRuntime(ctx, logger, db, collector)
 	if err != nil {
 		logger.Error().Err(err).Msgf("Failed to run db %s isribs: %t data for collectors", collector, isRibs)
 	} else {

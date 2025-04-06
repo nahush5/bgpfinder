@@ -2,12 +2,17 @@ package periodicscraper
 
 import (
 	"context"
+	"flag"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/alistairking/bgpfinder"
 	"github.com/alistairking/bgpfinder/internal/logging"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 )
 
 const (
@@ -17,10 +22,69 @@ const (
 	routeviewUpdatesInterval = (0*60 + 15) * 60
 	risRibsInterval          = (8*60 + 0) * 60
 	risUpdatesInterval       = (0*60 + 5) * 60
-	divVal                   = 64
+	divVal                   = 128
 )
 
-func runDb(ctx context.Context,
+type DBConfig struct {
+	Host     string
+	Port     string
+	User     string
+	Password string
+	DBName   string
+}
+
+func loadDBConfig(envFile string) (*DBConfig, error) {
+	if err := godotenv.Load(envFile); err != nil {
+		return nil, fmt.Errorf("error loading env file: %w", err)
+	}
+
+	config := &DBConfig{
+		Host:     os.Getenv("POSTGRES_HOST"),
+		Port:     os.Getenv("POSTGRES_PORT"),
+		User:     os.Getenv("POSTGRES_USER"),
+		Password: os.Getenv("POSTGRES_PASSWORD"),
+		DBName:   os.Getenv("POSTGRES_DB"),
+	}
+
+	// Validate required fields
+	if config.User == "" || config.Password == "" || config.DBName == "" {
+		return nil, fmt.Errorf("missing required database configuration")
+	}
+
+	return config, nil
+}
+
+func setupDB(logger *logging.Logger) *pgxpool.Pool {
+	envFile := flag.String("env-file", ".env", "Path to .env file (required if use-db is true)")
+	config, err := loadDBConfig(*envFile)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to load database configuration")
+	}
+	connStr := fmt.Sprintf(
+		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		config.User,
+		config.Password,
+		config.Host,
+		config.Port,
+		config.DBName,
+	)
+
+	db, err := pgxpool.New(context.Background(), connStr)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Unable to connect to database")
+	}
+	defer db.Close()
+	logger.Info().Msg("Successfully connected to Database")
+	return db
+}
+
+func setupContext() context.Context {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGKILL, syscall.SIGTERM)
+	defer stop()
+	return ctx
+}
+
+func getCollectorsAndPrevRuntime(ctx context.Context,
 	logger *logging.Logger,
 	db *pgxpool.Pool,
 	project string) ([]bgpfinder.Collector, []time.Time, error) {

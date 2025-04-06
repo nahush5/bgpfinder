@@ -27,3 +27,17 @@ services:
     ports:
       - "8080:8080"
     command: ["./cmd/bgpfinder-server/bgpfinder-server", "--port=8080", "--use-db", "--env-file", "example.env"]
+  periodic_scraper:
+    build: .
+    container_name: bgpfinder_periodic_scraper
+    depends_on:
+      - db
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypass
+      POSTGRES_DB: bgpfinder_db
+      POSTGRES_PORT: "5432"
+      POSTGRES_HOST: db
+    env_file:
+      - example.env
+    command: ["./cmd/periodscraper/scraper", "", "", "", ""]
