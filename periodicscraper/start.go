@@ -2,7 +2,7 @@ package periodicscraper
 
 import (
 	"context"
-	"fmt"
+	"sync"
 	"time"
 
 	"github.com/alistairking/bgpfinder"
@@ -10,44 +10,44 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Start(logger *logging.Logger, ripeRisRibsStartTime time.Time, ripeRisUpdatesStartTime time.Time, routeViewsRibsStartTime time.Time, routeViewsUpdatesStartTime time.Time) {
-	db := setupDB(logger)
-	ctx := setupContext()
+func Start(logger *logging.Logger, envFile *string, ripeRisRibsStartTime time.Time, ripeRisUpdatesStartTime time.Time, routeViewsRibsStartTime time.Time, routeViewsUpdatesStartTime time.Time) {
+	db := setupDB(logger, envFile)
+	ctx, stop := setupContext()
+	defer stop()
 
 	logger.Info().Msg("Starting runn")
 
-	// tickerRipeRisRibs := time.NewTicker(time.Duration(risRibsInterval))
-	// tickerRipeRisUpdates := time.NewTicker(time.Duration(risUpdatesInterval))
-	// tickerRipeRouteViewsRibs := time.NewTicker(time.Duration(routeviewRibsInterval))
-	// tickerRipeRouteViewsUpdates := time.NewTicker(time.Duration(routeviewUpdatesInterval))
+	var wg sync.WaitGroup
 
-	// go func() {
-	// 	for {
-	// 		select {
-	// 		case <-tickerRipeRisRibs.C:
-	// 			driver(ctx, logger, db, RIS, true)
-	// 		case <-tickerRipeRisUpdates.C:
-	// 			driver(ctx, logger, db, RIS, false)
-	// 		case <-tickerRipeRouteViewsRibs.C:
-	// 			driver(ctx, logger, db, ROUTEVIEWS, true)
-	// 		case <-tickerRipeRouteViewsUpdates.C:
-	// 			driver(ctx, logger, db, ROUTEVIEWS, false)
-	// 		case <-ctx.Done():
-	// 			logger.Info().Msg("Stopping periodic scraping due to context cancellation")
-	// 			tickerRipeRisRibs.Stop()
-	// 			tickerRipeRisUpdates.Stop()
-	// 			tickerRipeRouteViewsRibs.Stop()
-	// 			tickerRipeRouteViewsUpdates.Stop()
-	// 			return
-	// 		}
-	// 	}
-	// }()
+	// Start each scraping task in its own goroutine
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		startScraping(ctx, logger, db, RIS, true, risRibsInterval, ripeRisRibsStartTime)
+	}()
 
-	// <-ctx.Done()
-	go startScraping(ctx, logger, db, RIS, true, risRibsInterval, ripeRisRibsStartTime)
-	go startScraping(ctx, logger, db, RIS, false, risUpdatesInterval, ripeRisUpdatesStartTime)
-	go startScraping(ctx, logger, db, ROUTEVIEWS, true, routeviewRibsInterval, routeViewsRibsStartTime)
-	go startScraping(ctx, logger, db, ROUTEVIEWS, false, routeviewUpdatesInterval, routeViewsUpdatesStartTime)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		startScraping(ctx, logger, db, RIS, false, risUpdatesInterval, ripeRisUpdatesStartTime)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		startScraping(ctx, logger, db, ROUTEVIEWS, true, routeviewRibsInterval, routeViewsRibsStartTime)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		startScraping(ctx, logger, db, ROUTEVIEWS, false, routeviewUpdatesInterval, routeViewsUpdatesStartTime)
+	}()
+
+	// Wait for all scraping tasks to complete
+	wg.Wait()
+
+	<-ctx.Done() // Wait for context cancellation
 
 	logger.Info().Msg("Exiting Main()")
 }
@@ -59,6 +59,7 @@ func startScraping(ctx context.Context,
 	isRibsData bool,
 	frequency int64, waitTill time.Time) {
 	waitUntilTimestamp(waitTill)
+	logger.Info().Msgf("Reached target time: %v", waitTill)
 	for {
 		if ctx.Err() != nil {
 			return
@@ -67,18 +68,18 @@ func startScraping(ctx context.Context,
 		driver(ctx, logger, db, project, isRibsData)
 		elapsedTime := time.Since(startTime)
 		logger.Info().Msgf("Scraping runtime for project %s and isribs %t is %v", project, isRibsData, elapsedTime)
-		time.Sleep(time.Duration(frequency)) // or <-tick.C
+		time.Sleep(time.Duration(frequency) * time.Second) // or <-tick.C
 	}
 }
 
 func waitUntilTimestamp(targetTime time.Time) {
-	now := time.Now()
-	duration := targetTime.Sub(now)
+	duration := time.Until(targetTime)
 
-	if duration > 0 {
-		time.Sleep(duration * time.Second)
+	if duration <= 0 {
+		return
 	}
-	fmt.Println("Reached target time:", targetTime)
+
+	time.Sleep(duration)
 }
 
 func driver(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, collector string, isRibs bool) {

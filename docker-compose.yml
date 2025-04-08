@@ -26,7 +26,7 @@ services:
       - example.env
     ports:
       - "8080:8080"
-    command: ["./cmd/bgpfinder-server/bgpfinder-server", "--port=8080", "--use-db", "--env-file", "example.env"]
+    command: ["./cmd/bgpfinder-server/bgpfinder-server", "--port=8080", "--use-db", "--env-file=/bgpfinder/example.env"]
   periodic_scraper:
     build: .
     container_name: bgpfinder_periodic_scraper
@@ -40,4 +40,4 @@ services:
       POSTGRES_HOST: db
     env_file:
       - example.env
-    command: ["./cmd/periodscraper/scraper", "", "", "", ""]
+    command: ["./cmd/periodicscraper/scraper", "--ripeRisRibsStartTime", "2025-04-08 18:59:00", "--ripeRisUpdatesStartTime", "2025-04-08 18:53:00", "--routeViewsRibsStartTime", "2025-04-08 18:59:00", "--routeViewsUpdatesStartTime", "2025-04-08 18:53:00", "--env-file=/bgpfinder/example.env"]
