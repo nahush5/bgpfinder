@@ -2,7 +2,6 @@ package periodicscraper
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -54,8 +53,7 @@ func loadDBConfig(envFile string) (*DBConfig, error) {
 	return config, nil
 }
 
-func setupDB(logger *logging.Logger) *pgxpool.Pool {
-	envFile := flag.String("env-file", ".env", "Path to .env file (required if use-db is true)")
+func setupDB(logger *logging.Logger, envFile *string) *pgxpool.Pool {
 	config, err := loadDBConfig(*envFile)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to load database configuration")
@@ -78,10 +76,9 @@ func setupDB(logger *logging.Logger) *pgxpool.Pool {
 	return db
 }
 
-func setupContext() context.Context {
+func setupContext() (context.Context, context.CancelFunc) {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGKILL, syscall.SIGTERM)
-	defer stop()
-	return ctx
+	return ctx, stop
 }
 
 func getCollectorsAndPrevRuntime(ctx context.Context,
@@ -93,7 +90,7 @@ func getCollectorsAndPrevRuntime(ctx context.Context,
 
 	rows, err := db.Query(ctx, stmt, project)
 	if err != nil {
-		logger.Error().Err(err).Msg("Query failed, continuing execution")
+		logger.Error().Err(err).Msg("Query failed")
 		return nil, nil, err
 	}
 	defer rows.Close()
