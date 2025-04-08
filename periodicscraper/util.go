@@ -71,7 +71,6 @@ func setupDB(logger *logging.Logger, envFile *string) *pgxpool.Pool {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Unable to connect to database")
 	}
-	defer db.Close()
 	logger.Info().Msg("Successfully connected to Database")
 	return db
 }
