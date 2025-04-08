@@ -12,6 +12,7 @@ import (
 
 func Start(logger *logging.Logger, envFile *string, ripeRisRibsStartTime time.Time, ripeRisUpdatesStartTime time.Time, routeViewsRibsStartTime time.Time, routeViewsUpdatesStartTime time.Time) {
 	db := setupDB(logger, envFile)
+	defer db.Close()
 	ctx, stop := setupContext()
 	defer stop()
 
@@ -86,7 +87,7 @@ func driver(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, colle
 	logger.Info().Msgf("Starting periodic collectors data for %s isribs: %t", collector, isRibs)
 	collectors, prevRuntimes, err := getCollectorsAndPrevRuntime(ctx, logger, db, collector)
 	if err != nil {
-		logger.Error().Err(err).Msgf("Failed to run db %s isribs: %t data for collectors", collector, isRibs)
+		logger.Error().Err(err).Msgf("Failed to run db to collect data for %s isribs: %t data for collectors", collector, isRibs)
 	} else {
 		logger.Info().Msgf("Run of db %s isribs: %t completed successfully", collector, isRibs)
 	}
