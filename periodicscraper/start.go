@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Start(logger *logging.Logger, envFile *string, ripeRisRibsStartTime time.Time, ripeRisUpdatesStartTime time.Time, routeViewsRibsStartTime time.Time, routeViewsUpdatesStartTime time.Time) {
+func Start(logger *logging.Logger, envFile *string) {
 	db := setupDB(logger, envFile)
 	defer db.Close()
 	ctx, stop := setupContext()
@@ -24,25 +24,25 @@ func Start(logger *logging.Logger, envFile *string, ripeRisRibsStartTime time.Ti
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		startScraping(ctx, logger, db, RIS, true, risRibsInterval, ripeRisRibsStartTime)
+		startScraping(ctx, logger, db, RIS, true, risRibsInterval, risRibsInterval)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		startScraping(ctx, logger, db, RIS, false, risUpdatesInterval, ripeRisUpdatesStartTime)
+		startScraping(ctx, logger, db, RIS, false, risUpdatesInterval, risUpdatesInterval)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		startScraping(ctx, logger, db, ROUTEVIEWS, true, routeviewRibsInterval, routeViewsRibsStartTime)
+		startScraping(ctx, logger, db, ROUTEVIEWS, true, routeviewRibsInterval, routeviewRibsInterval)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		startScraping(ctx, logger, db, ROUTEVIEWS, false, routeviewUpdatesInterval, routeViewsUpdatesStartTime)
+		startScraping(ctx, logger, db, ROUTEVIEWS, false, routeviewUpdatesInterval, routeviewUpdatesInterval)
 	}()
 
 	// Wait for all scraping tasks to complete
@@ -58,7 +58,9 @@ func startScraping(ctx context.Context,
 	db *pgxpool.Pool,
 	project string,
 	isRibsData bool,
-	frequency int64, waitTill time.Time) {
+	frequency int64,
+	intervalSeconds int64) {
+	waitTill := nextDivisibleTimestamp(intervalSeconds)
 	waitUntilTimestamp(waitTill)
 	logger.Info().Msgf("Reached target time: %v", waitTill)
 	for {
@@ -71,6 +73,16 @@ func startScraping(ctx context.Context,
 		logger.Info().Msgf("Scraping runtime for project %s and isribs %t is %v", project, isRibsData, elapsedTime)
 		time.Sleep(time.Duration(frequency) * time.Second) // or <-tick.C
 	}
+}
+
+func nextDivisibleTimestamp(intervalSeconds int64) time.Time {
+	now := time.Now()
+	interval := time.Duration(intervalSeconds) * time.Second
+	remainder := now.Unix() % int64(interval.Seconds())
+	if remainder == 0 {
+		return now
+	}
+	return now.Add(time.Duration(int64(interval.Seconds())-remainder) * time.Second)
 }
 
 func waitUntilTimestamp(targetTime time.Time) {

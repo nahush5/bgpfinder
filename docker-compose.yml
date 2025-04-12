@@ -40,4 +40,4 @@ services:
       POSTGRES_HOST: db
     env_file:
       - example.env
-    command: ["./cmd/periodicscraper/scraper", "--ripeRisRibsStartTime", "2025-04-08 18:59:00", "--ripeRisUpdatesStartTime", "2025-04-08 18:53:00", "--routeViewsRibsStartTime", "2025-04-08 18:59:00", "--routeViewsUpdatesStartTime", "2025-04-08 18:53:00", "--env-file=/bgpfinder/example.env"]
+    command: ["./cmd/periodicscraper/scraper", "--env-file=/bgpfinder/example.env"]

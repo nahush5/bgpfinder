@@ -23,4 +23,4 @@ EXPOSE 8080
 
 # Set the default command to run the Go application
 CMD ["/bgpfinder/cmd/bgpfinder-server/bgpfinder-server", "--port=8080", "--use-db", "--env-file", "/bgpfinder/example.env"]
-CMD ["/bgpfinder/cmd/periodicscraper/scraper", "--ripeRisRibsStartTime", "2025-04-08 18:53:00", "--ripeRisUpdatesStartTime", "2025-04-08 18:53:00", "--routeViewsRibsStartTime", "2025-04-08 18:53:00", "--routeViewsUpdatesStartTime", "2025-04-08 18:53:00", "--env-file=/bgpfinder/example.env"]
+CMD ["/bgpfinder/cmd/periodicscraper/scraper", "--env-file=/bgpfinder/example.env"]
