@@ -86,7 +86,7 @@ func nextDivisibleTimestamp(intervalSeconds int64) time.Time {
 }
 
 func waitUntilTimestamp(targetTime time.Time) {
-	duration := time.Until(targetTime)
+	duration := time.Until(targetTime.Add(time.Duration(epsilonTime) * time.Second))
 
 	if duration <= 0 {
 		return
