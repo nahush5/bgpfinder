@@ -20,30 +20,17 @@ func Start(logger *logging.Logger, envFile *string) {
 
 	var wg sync.WaitGroup
 
-	// Start each scraping task in its own goroutine
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		startScraping(ctx, logger, db, RIS, true, risRibsInterval, risRibsInterval)
-	}()
+	projectTuples := getProjectTuples()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		startScraping(ctx, logger, db, RIS, false, risUpdatesInterval, risUpdatesInterval)
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		startScraping(ctx, logger, db, ROUTEVIEWS, true, routeviewRibsInterval, routeviewRibsInterval)
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		startScraping(ctx, logger, db, ROUTEVIEWS, false, routeviewUpdatesInterval, routeviewUpdatesInterval)
-	}()
+	for _, projectTuple := range projectTuples {
+		// Start each scraping task in its own goroutine
+		tuple := projectTuple
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			startScraping(ctx, logger, db, tuple)
+		}()
+	}
 
 	// Wait for all scraping tasks to complete
 	wg.Wait()
@@ -56,23 +43,24 @@ func Start(logger *logging.Logger, envFile *string) {
 func startScraping(ctx context.Context,
 	logger *logging.Logger,
 	db *pgxpool.Pool,
-	project string,
-	isRibsData bool,
-	frequency int64,
-	intervalSeconds int64) {
-	waitTill := nextDivisibleTimestamp(intervalSeconds)
-	waitUntilTimestamp(waitTill)
-	logger.Info().Msgf("Reached target time: %v", waitTill)
+	projectTuple ProjectTuple) {
+	wait(projectTuple.interval, logger)
 	for {
 		if ctx.Err() != nil {
 			return
 		}
 		startTime := time.Now()
-		driver(ctx, logger, db, project, isRibsData)
+		driver(ctx, logger, db, projectTuple.project, projectTuple.isRibs)
 		elapsedTime := time.Since(startTime)
-		logger.Info().Msgf("Scraping runtime for project %s and isribs %t is %v", project, isRibsData, elapsedTime)
-		time.Sleep(time.Duration(frequency) * time.Second) // or <-tick.C
+		logger.Info().Msgf("Scraping runtime for project %s and isribs %t is %v", projectTuple.project, projectTuple.isRibs, elapsedTime)
+		wait(projectTuple.interval, logger) // or <-tick.C
 	}
+}
+
+func wait(intervalSeconds int64, logger *logging.Logger) {
+	waitTill := nextDivisibleTimestamp(intervalSeconds)
+	waitUntilTimestamp(waitTill)
+	logger.Info().Msgf("Reached target time: %v", waitTill)
 }
 
 func nextDivisibleTimestamp(intervalSeconds int64) time.Time {
@@ -82,11 +70,11 @@ func nextDivisibleTimestamp(intervalSeconds int64) time.Time {
 	if remainder == 0 {
 		return now
 	}
-	return now.Add(time.Duration(int64(interval.Seconds())-remainder) * time.Second)
+	return now.Add(time.Duration(int64(interval.Seconds())-remainder+epsilonTime) * time.Second)
 }
 
 func waitUntilTimestamp(targetTime time.Time) {
-	duration := time.Until(targetTime.Add(time.Duration(epsilonTime) * time.Second))
+	duration := time.Until(targetTime)
 
 	if duration <= 0 {
 		return

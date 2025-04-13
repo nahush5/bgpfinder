@@ -33,6 +33,21 @@ type DBConfig struct {
 	DBName   string
 }
 
+type ProjectTuple struct {
+	project  string
+	isRibs   bool
+	interval int64
+}
+
+func getProjectTuples() [4]ProjectTuple {
+	return [4]ProjectTuple{
+		{RIS, true, risRibsInterval},
+		{RIS, false, risUpdatesInterval},
+		{ROUTEVIEWS, true, routeviewRibsInterval},
+		{ROUTEVIEWS, false, routeviewUpdatesInterval},
+	}
+}
+
 func loadDBConfig(envFile string) (*DBConfig, error) {
 	if err := godotenv.Load(envFile); err != nil {
 		return nil, fmt.Errorf("error loading env file: %w", err)
