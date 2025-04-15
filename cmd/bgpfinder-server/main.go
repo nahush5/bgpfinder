@@ -339,8 +339,7 @@ func dataHandler(db *pgxpool.Pool, logger *logging.Logger) http.HandlerFunc {
 
 				// Optionally, upsert the fetched data into the DB for future caching
 				if len(results) > 0 {
-					time := time.Now().UTC().Unix()
-					err = bgpfinder.UpsertBGPDumps(r.Context(), logger, db, results, &time)
+					err = bgpfinder.UpsertBGPDumps(r.Context(), logger, db, results)
 					if err != nil {
 						logger.Error().Err(err).Msg("Failed to upsert newly fetched BGP dumps into DB")
 						// Continue without failing the request

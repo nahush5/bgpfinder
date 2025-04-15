@@ -91,7 +91,7 @@ func UpdateCollectorsData(ctx context.Context, logger *logging.Logger, db *pgxpo
 				Int("dumps_found", len(dumps)).
 				Msg("Found BGP dumps for collector")
 
-			if err := UpsertBGPDumps(ctx, logger, db, dumps, &currentTime); err != nil {
+			if err := UpsertBGPDumps(ctx, logger, db, dumps); err != nil {
 				logger.Error().
 					Err(err).
 					Str("collector", collector.Name).
