@@ -83,18 +83,24 @@ func waitUntilTimestamp(targetTime time.Time) {
 	time.Sleep(duration)
 }
 
-func driver(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, collector string, isRibs bool) {
-	logger.Info().Msgf("Starting periodic collectors data for %s isribs: %t", collector, isRibs)
-	collectors, prevRuntimes, err := getCollectorsAndPrevRuntime(ctx, logger, db, collector)
+func driver(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, project string, isRibs bool) {
+	logger.Info().Msgf("Starting periodic collectors data for %s isribs: %t", project, isRibs)
+	collectors, prevRuntimes, err := getCollectorsAndPrevRuntime(ctx, logger, db, project)
 	if err != nil {
-		logger.Error().Err(err).Msgf("Failed to run db to collect data for %s isribs: %t data for collectors", collector, isRibs)
+		logger.Error().Err(err).Msgf("Failed to run db to collect data for %s isribs: %t data for collectors", project, isRibs)
 	} else {
-		logger.Info().Msgf("Run of db %s isribs: %t completed successfully", collector, isRibs)
+		logger.Info().Msgf("Run of db on %s isribs: %t completed successfully", project, isRibs)
 	}
-	err = PeriodicScraper(ctx, logger, getRetryInterval(collector, isRibs), prevRuntimes, collectors, db, bgpfinder.NewRouteViewsFinder(), isRibs)
-	if err != nil {
-		logger.Error().Err(err).Msgf("Failed to run periodic scraper %s isribs: %t data for collectors", collector, isRibs)
+	var finder bgpfinder.Finder
+	if project == RIS {
+		finder = bgpfinder.NewRISFinder()
 	} else {
-		logger.Info().Msgf("Run of periodic scraper %s isribs: %t completed successfully", collector, isRibs)
+		finder = bgpfinder.NewRouteViewsFinder()
+	}
+	err = PeriodicScraper(ctx, logger, getRetryInterval(project, isRibs), prevRuntimes, collectors, db, finder, isRibs)
+	if err != nil {
+		logger.Error().Err(err).Msgf("Failed to run periodic scraper %s isribs: %t data for collectors", project, isRibs)
+	} else {
+		logger.Info().Msgf("Run of periodic scraper %s isribs: %t completed successfully", project, isRibs)
 	}
 }
