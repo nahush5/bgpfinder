@@ -3,6 +3,7 @@ package periodicscraper
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/alistairking/bgpfinder"
@@ -20,13 +21,22 @@ func PeriodicScraper(ctx context.Context,
 	isRibsData bool) error {
 
 	var successfullyWrittenCollectors []bgpfinder.Collector
+	var wg sync.WaitGroup
+	var mu sync.Mutex
 
 	for i := 0; i < len(collectors); i++ {
-		if err := ScrapeCollector(ctx, logger, retryMultInterval, prevRuntimes[i], collectors[i], db, finder, isRibsData); err != nil {
-			logger.Error().Err(err).Str("collector", collectors[i].Name).Msg("Failed to upsert dumps")
-			continue
-		}
-		successfullyWrittenCollectors = append(successfullyWrittenCollectors, collectors[i])
+		i := i // capture loop variable properly
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := ScrapeCollector(ctx, logger, retryMultInterval, prevRuntimes[i], collectors[i], db, finder, isRibsData); err != nil {
+				logger.Error().Err(err).Str("collector", collectors[i].Name).Msg("Failed to upsert dumps")
+				return
+			}
+			mu.Lock()
+			successfullyWrittenCollectors = append(successfullyWrittenCollectors, collectors[i])
+			mu.Unlock()
+		}()
 	}
 
 	return bgpfinder.UpsertCollectors(ctx, logger, db, successfullyWrittenCollectors)

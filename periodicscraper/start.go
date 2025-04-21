@@ -66,7 +66,7 @@ func wait(intervalSeconds int64, logger *logging.Logger) {
 func nextDivisibleTimestamp(intervalSeconds int64) time.Time {
 	now := time.Now()
 	interval := time.Duration(intervalSeconds) * time.Second
-	remainder := now.Unix() % int64(interval.Seconds())
+	remainder := now.Unix() % int64(interval.Seconds()) // This is the modulo time of now with the interval frequency
 	if remainder == 0 {
 		return now
 	}

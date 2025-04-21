@@ -22,7 +22,7 @@ const (
 	risRibsInterval          = (8*60 + 0) * 60
 	risUpdatesInterval       = (0*60 + 5) * 60
 	divVal                   = 128
-	epsilonTime              = 30
+	epsilonTime              = 30 // buffer time so that the scraper code doesn't immediately kick off at the designated time.
 )
 
 type DBConfig struct {
