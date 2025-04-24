@@ -10,7 +10,7 @@ import (
 )
 
 // UpsertCollectors inserts or updates collector records.
-func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, collectors []Collector) error {
+func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, collectors []Collector, dumpType DumpType) error {
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to begin transaction for UpsertCollectors")
@@ -19,8 +19,8 @@ func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.P
 	defer tx.Rollback(ctx)
 	// Define the SQL query
 	stmt := `
-		INSERT INTO collectors (name, project_name, cdate, mdate, last_completed_crawl_time, most_recent_file_timestamp)
-		VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, COALESCE((SELECT max(timestamp) FROM bgp_dumps WHERE collector_name = $3), '1970-01-01 00:00:00'))
+		INSERT INTO collectors (name, project_name, cdate, mdate, last_completed_crawl_time, most_recent_file_timestamp, last_completed_crawl_dump_type)
+		VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, COALESCE((SELECT max(timestamp) FROM bgp_dumps WHERE collector_name = $3), '1970-01-01 00:00:00'), $4)
 		ON CONFLICT (name) DO UPDATE
 		SET project_name = EXCLUDED.project_name,
 			mdate = EXCLUDED.mdate,
@@ -32,7 +32,7 @@ func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.P
 	for _, c := range collectors {
 		logger.Debug().Str("collector", c.Name).Str("project", c.Project.Name).Msg("Executing upsert for collector")
 		collectorName := c.Name
-		ct, err := tx.Exec(ctx, stmt, collectorName, c.Project.Name, collectorName)
+		ct, err := tx.Exec(ctx, stmt, collectorName, c.Project.Name, collectorName, dumpType.String())
 		if err != nil {
 			logger.Error().Err(err).Str("collector", c.Name).Msg("Failed to execute upsert")
 			return err

@@ -39,7 +39,7 @@ func PeriodicScraper(ctx context.Context,
 		}()
 	}
 
-	return bgpfinder.UpsertCollectors(ctx, logger, db, successfullyWrittenCollectors)
+	return bgpfinder.UpsertCollectors(ctx, logger, db, successfullyWrittenCollectors, getDumpTypeFromBool(isRibsData))
 }
 
 // PeriodicScraper starts a goroutine that scraps the collectors for data.
@@ -86,13 +86,7 @@ func getDumps(ctx context.Context,
 
 	logger.Info().Str("collector", collector.Name).Msg("Starting to scrape collector data")
 
-	var dumpType bgpfinder.DumpType
-
-	if isRibsData {
-		dumpType = bgpfinder.DumpTypeRib
-	} else {
-		dumpType = bgpfinder.DumpTypeUpdates
-	}
+	dumpType := getDumpTypeFromBool(isRibsData)
 
 	query := bgpfinder.Query{
 		Collectors: []bgpfinder.Collector{collector},
