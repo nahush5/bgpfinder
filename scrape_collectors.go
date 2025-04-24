@@ -61,9 +61,7 @@ func UpdateCollectorsData(ctx context.Context, logger *logging.Logger, db *pgxpo
 			Int("collector_count", len(collectors)).
 			Msg("Found collectors for project")
 
-		currentTime := time.Now().UTC().Unix()
-
-		if err := UpsertCollectors(ctx, logger, db, collectors, &currentTime, true); err != nil {
+		if err := UpsertCollectors(ctx, logger, db, collectors); err != nil {
 			logger.Error().Err(err).Str("project", project.Name).Msg("Failed to upsert collectors")
 			continue
 		}
@@ -93,7 +91,7 @@ func UpdateCollectorsData(ctx context.Context, logger *logging.Logger, db *pgxpo
 				Int("dumps_found", len(dumps)).
 				Msg("Found BGP dumps for collector")
 
-			if err := UpsertBGPDumps(ctx, logger, db, dumps, &currentTime); err != nil {
+			if err := UpsertBGPDumps(ctx, logger, db, dumps); err != nil {
 				logger.Error().
 					Err(err).
 					Str("collector", collector.Name).

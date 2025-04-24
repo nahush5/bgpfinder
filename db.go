@@ -2,7 +2,6 @@ package bgpfinder
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -11,35 +10,29 @@ import (
 )
 
 // UpsertCollectors inserts or updates collector records.
-func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, collectors []Collector, currentTime *int64, isCrawler bool) error {
-	if currentTime == nil {
-		return fmt.Errorf("Error occurred: currentTime passed was nil")
-	}
-
+func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, collectors []Collector) error {
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to begin transaction for UpsertCollectors")
 		return err
 	}
 	defer tx.Rollback(ctx)
-
-	var timestamp string
-	fmt.Sprintf(timestamp, "last_request_timestamp")
-	if isCrawler {
-		fmt.Sprintf(timestamp, "last_fetch_timestamp")
-	}
-
+	// Define the SQL query
 	stmt := `
-        INSERT INTO collectors (name, project_name,)` + timestamp + `
-        VALUES ($1, $2, to_timestamp($3))
-        ON CONFLICT (name) DO UPDATE
-        SET project_name = EXCLUDED.project_name
-		SET ` + timestamp + ` = EXCLUDED.` + timestamp
+		INSERT INTO collectors (name, project_name, cdate, mdate, last_completed_crawl_time, most_recent_file_timestamp)
+		VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, COALESCE((SELECT max(timestamp) FROM bgp_dumps WHERE collector_name = $3), '1970-01-01 00:00:00'))
+		ON CONFLICT (name) DO UPDATE
+		SET project_name = EXCLUDED.project_name,
+			mdate = EXCLUDED.mdate,
+			most_recent_file_timestamp = EXCLUDED.most_recent_file_timestamp,
+			last_completed_crawl_time = EXCLUDED.last_completed_crawl_time
+	`
 
 	logger.Info().Int("collector_count", len(collectors)).Msg("Upserting collectors into DB")
 	for _, c := range collectors {
 		logger.Debug().Str("collector", c.Name).Str("project", c.Project.Name).Msg("Executing upsert for collector")
-		ct, err := tx.Exec(ctx, stmt, c.Name, c.Project.Name, *currentTime)
+		collectorName := c.Name
+		ct, err := tx.Exec(ctx, stmt, collectorName, c.Project.Name, collectorName)
 		if err != nil {
 			logger.Error().Err(err).Str("collector", c.Name).Msg("Failed to execute upsert")
 			return err
@@ -58,11 +51,7 @@ func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.P
 }
 
 // UpsertBGPDumps inserts or updates BGP dump records in batches.
-func UpsertBGPDumps(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, dumps []BGPDump, currentTime *int64) error {
-	if currentTime == nil {
-		return fmt.Errorf("Error occurred: currentTime passed was nil")
-	}
-
+func UpsertBGPDumps(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, dumps []BGPDump) error {
 	const batchSize = 10000 // Define an appropriate batch size
 
 	total := len(dumps)
@@ -81,17 +70,17 @@ func UpsertBGPDumps(ctx context.Context, logger *logging.Logger, db *pgxpool.Poo
 		}
 
 		stmt := `
-			INSERT INTO bgp_dumps (collector_name, url, dump_type, duration, timestamp, first_fetch_timestamp, last_fetch_timestamp)
-			VALUES ($1, $2, $3, $4, to_timestamp($5), to_timestamp($6), to_timestamp($7))
+			INSERT INTO bgp_dumps (collector_name, url, dump_type, duration, timestamp, cdate, mdate)
+			VALUES ($1, $2, $3, $4, to_timestamp($5), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 			ON CONFLICT (collector_name, url) DO UPDATE
 			SET dump_type = EXCLUDED.dump_type,
 				duration = EXCLUDED.duration,
 				timestamp = EXCLUDED.timestamp,
-				last_fetch_timestamp = EXCLUDED.last_fetch_timestamp
+				mdate = EXCLUDED.mdate
 		`
 
 		for _, d := range batch {
-			_, err := tx.Exec(ctx, stmt, d.Collector.Name, d.URL, int16(d.DumpType), d.Duration, d.Timestamp, *currentTime, *currentTime)
+			_, err := tx.Exec(ctx, stmt, d.Collector.Name, d.URL, int16(d.DumpType), d.Duration, d.Timestamp)
 			if err != nil {
 				logger.Error().Err(err).Str("collector", d.Collector.Name).Str("url", d.URL).Msg("Failed to execute upsert for BGP dump")
 				tx.Rollback(ctx)

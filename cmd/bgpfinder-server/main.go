@@ -37,7 +37,7 @@ func loadDBConfig(envFile string) (*DBConfig, error) {
 	}
 
 	config := &DBConfig{
-		Host:     "localhost", // hardcoded since DB is only on localhost
+		Host:     os.Getenv("POSTGRES_HOST"),
 		Port:     os.Getenv("POSTGRES_PORT"),
 		User:     os.Getenv("POSTGRES_USER"),
 		Password: os.Getenv("POSTGRES_PASSWORD"),
@@ -100,9 +100,10 @@ func main() {
 	// Start periodic scraping with the configured frequency
 	if *useDB {
 		bgpfinder.StartPeriodicScraping(ctx, logger, *scrapeFreq, db, bgpfinder.DefaultFinder)
+		// periodicscraper.Main(ctx, logger, db)
 	}
 
-	// Handle HTTP requests
+	// // Handle HTTP requests
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/meta/projects", projectHandler).Methods("GET")
 	router.HandleFunc("/meta/projects/{project}", projectHandler).Methods("GET")
@@ -338,8 +339,7 @@ func dataHandler(db *pgxpool.Pool, logger *logging.Logger) http.HandlerFunc {
 
 				// Optionally, upsert the fetched data into the DB for future caching
 				if len(results) > 0 {
-					time := time.Now().UTC().Unix()
-					err = bgpfinder.UpsertBGPDumps(r.Context(), logger, db, results, &time)
+					err = bgpfinder.UpsertBGPDumps(r.Context(), logger, db, results)
 					if err != nil {
 						logger.Error().Err(err).Msg("Failed to upsert newly fetched BGP dumps into DB")
 						// Continue without failing the request
