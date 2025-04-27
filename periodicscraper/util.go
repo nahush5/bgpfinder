@@ -164,7 +164,7 @@ func getDumpTypeFromBool(isRibs bool) bgpfinder.DumpType {
 	var dumpType bgpfinder.DumpType
 
 	if isRibs {
-		dumpType = bgpfinder.DumpTypeAny
+		dumpType = bgpfinder.DumpTypeRib
 	} else {
 		dumpType = bgpfinder.DumpTypeUpdates
 	}

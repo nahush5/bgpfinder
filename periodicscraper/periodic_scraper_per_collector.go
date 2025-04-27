@@ -25,19 +25,21 @@ func PeriodicScraper(ctx context.Context,
 	var mu sync.Mutex
 
 	for i := 0; i < len(collectors); i++ {
-		i := i // capture loop variable properly
+		j := i // capture loop variable properly
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := ScrapeCollector(ctx, logger, retryMultInterval, prevRuntimes[i], collectors[i], db, finder, isRibsData); err != nil {
-				logger.Error().Err(err).Str("collector", collectors[i].Name).Msg("Failed to upsert dumps")
+			if err := ScrapeCollector(ctx, logger, retryMultInterval, prevRuntimes[j], collectors[j], db, finder, isRibsData); err != nil {
+				logger.Error().Err(err).Str("collector", collectors[j].Name).Msg("Failed to upsert dumps")
 				return
 			}
 			mu.Lock()
-			successfullyWrittenCollectors = append(successfullyWrittenCollectors, collectors[i])
+			successfullyWrittenCollectors = append(successfullyWrittenCollectors, collectors[j])
 			mu.Unlock()
 		}()
 	}
+
+	wg.Wait()
 
 	return bgpfinder.UpsertCollectors(ctx, logger, db, successfullyWrittenCollectors, getDumpTypeFromBool(isRibsData))
 }
