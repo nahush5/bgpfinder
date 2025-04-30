@@ -41,7 +41,7 @@ func PeriodicScraper(ctx context.Context,
 
 	wg.Wait()
 
-	return bgpfinder.UpsertCollectors(ctx, logger, db, successfullyWrittenCollectors, getDumpTypeFromBool(isRibsData))
+	return bgpfinder.UpsertCollectors(ctx, logger, db, successfullyWrittenCollectors, getTimestampForDumpType(isRibsData))
 }
 
 // PeriodicScraper starts a goroutine that scraps the collectors for data.

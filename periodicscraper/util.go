@@ -102,11 +102,9 @@ func getCollectorsAndPrevRuntime(ctx context.Context,
 	project string,
 	isRibs bool) ([]bgpfinder.Collector, []time.Time, error) {
 
-	dumpType := getDumpTypeFromBool(isRibs)
+	stmt := `SELECT name,` + getTimestampForDumpType(isRibs) + ` FROM collectors where project_name = $1`
 
-	stmt := `SELECT name, max(last_completed_crawl_time) FROM collectors where project_name = $1 and last_completed_crawl_dump_type in ($2, $3) GROUP BY name`
-
-	rows, err := db.Query(ctx, stmt, project, dumpType.String(), bgpfinder.DumpTypeAny.String())
+	rows, err := db.Query(ctx, stmt, project)
 	if err != nil {
 		logger.Error().Err(err).Msg("Query failed")
 		return nil, nil, err
@@ -170,4 +168,16 @@ func getDumpTypeFromBool(isRibs bool) bgpfinder.DumpType {
 	}
 
 	return dumpType
+}
+
+func getTimestampForDumpType(isRibs bool) string {
+	var timestampField string
+
+	if isRibs {
+		timestampField = `last_completed_crawl_time_ribs`
+	} else {
+		timestampField = `last_completed_crawl_time_updates`
+	}
+
+	return timestampField
 }
