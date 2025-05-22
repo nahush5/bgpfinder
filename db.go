@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"github.com/alistairking/bgpfinder/internal/logging"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // UpsertCollectors inserts or updates collector records.
-func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, collectors []Collector) error {
+func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, collectors []Collector, dumptType DumpType, timestamp time.Time) error {
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to begin transaction for UpsertCollectors")
@@ -18,21 +19,49 @@ func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.P
 	}
 	defer tx.Rollback(ctx)
 	// Define the SQL query
+
+	var timestampField string
+	var timestampValue string
+	var timestampCondition string
+
+	switch dumptType {
+	case DumpTypeRib:
+		timestampField = `last_completed_crawl_time_ribs`
+		timestampValue = `$4`
+		timestampCondition = timestampField + ` = EXCLUDED.` + timestampField
+	case DumpTypeUpdates:
+		timestampField = `last_completed_crawl_time_updates`
+		timestampValue = `$4`
+		timestampCondition = timestampField + ` = EXCLUDED.` + timestampField
+	case DumpTypeAny:
+		timestampField = `last_completed_crawl_time_ribs, last_completed_crawl_time_updates`
+		timestampValue = `$4, $5`
+		timestampCondition = `last_completed_crawl_time_ribs = EXCLUDED.last_completed_crawl_time_ribs,
+			last_completed_crawl_time_updates = EXCLUDED.last_completed_crawl_time_updates`
+	}
+
 	stmt := `
-		INSERT INTO collectors (name, project_name, cdate, mdate, last_completed_crawl_time, most_recent_file_timestamp)
-		VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, COALESCE((SELECT max(timestamp) FROM bgp_dumps WHERE collector_name = $3), '1970-01-01 00:00:00'))
+		INSERT INTO collectors (name, project_name, cdate, mdate, most_recent_file_timestamp, ` + timestampField + `)
+		VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, COALESCE((SELECT max(timestamp) FROM bgp_dumps WHERE collector_name = $3), '1970-01-01 00:00:00'), ` + timestampValue + `)
 		ON CONFLICT (name) DO UPDATE
 		SET project_name = EXCLUDED.project_name,
 			mdate = EXCLUDED.mdate,
-			most_recent_file_timestamp = EXCLUDED.most_recent_file_timestamp,
-			last_completed_crawl_time = EXCLUDED.last_completed_crawl_time
-	`
+			most_recent_file_timestamp = EXCLUDED.most_recent_file_timestamp,` + timestampCondition
 
 	logger.Info().Int("collector_count", len(collectors)).Msg("Upserting collectors into DB")
 	for _, c := range collectors {
 		logger.Debug().Str("collector", c.Name).Str("project", c.Project.Name).Msg("Executing upsert for collector")
 		collectorName := c.Name
-		ct, err := tx.Exec(ctx, stmt, collectorName, c.Project.Name, collectorName)
+
+		var ct pgconn.CommandTag
+		var err error
+
+		if dumptType == DumpTypeAny {
+			ct, err = tx.Exec(ctx, stmt, collectorName, c.Project.Name, collectorName, timestamp, timestamp)
+		} else {
+			ct, err = tx.Exec(ctx, stmt, collectorName, c.Project.Name, collectorName, timestamp)
+		}
+
 		if err != nil {
 			logger.Error().Err(err).Str("collector", c.Name).Msg("Failed to execute upsert")
 			return err
