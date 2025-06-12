@@ -7,9 +7,9 @@ import (
 	"fmt"
 )
 
-const _DumpTypeName = "anyribupdates"
+const _DumpTypeName = "anyribsupdates"
 
-var _DumpTypeIndex = [...]uint8{0, 3, 6, 13}
+var _DumpTypeIndex = [...]uint8{0, 3, 7, 14}
 
 func (i DumpType) String() string {
 	if i >= DumpType(len(_DumpTypeIndex)-1) {
@@ -22,8 +22,8 @@ var _DumpTypeValues = []DumpType{0, 1, 2}
 
 var _DumpTypeNameToValueMap = map[string]DumpType{
 	_DumpTypeName[0:3]:  0,
-	_DumpTypeName[3:6]:  1,
-	_DumpTypeName[6:13]: 2,
+	_DumpTypeName[3:7]:  1,
+	_DumpTypeName[7:14]: 2,
 }
 
 // DumpTypeString retrieves an enum value from the enum constants string name.

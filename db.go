@@ -135,7 +135,7 @@ func FetchDataFromDB(ctx context.Context, db *pgxpool.Pool, query Query) ([]BGPD
         FROM bgp_dumps
         WHERE collector_name = ANY($1)
         AND timestamp >= to_timestamp($2)
-        AND timestamp < to_timestamp($3)
+        AND timestamp <= to_timestamp($3)
     `
 	if query.DumpType != DumpTypeAny {
 		sqlQuery += " AND dump_type = $4"
