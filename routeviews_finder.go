@@ -31,8 +31,8 @@ var (
 	RouteviewsProject = Project{Name: ROUTEVIEWS}
 
 	ROUTEVIEWS_DUMP_TYPES = map[DumpType]rvDumpType{
-		DumpTypeRib: {
-			DumpType: DumpTypeRib,
+		DumpTypeRibs: {
+			DumpType: DumpTypeRibs,
 			Duration: time.Hour, // ish
 			URL:      "RIBS",
 			Regexp:   regexp.MustCompile(`^rib\.(\d{8}\.\d{4})\.bz2$`),
@@ -160,7 +160,7 @@ func (f *RouteViewsFinder) Find(query Query) ([]BGPDump, error) {
 	var results []BGPDump
 	var allowedPrefixes []string
 
-	if query.DumpType == DumpTypeRib || query.DumpType == DumpTypeAny {
+	if query.DumpType == DumpTypeRibs || query.DumpType == DumpTypeAny {
 		allowedPrefixes = append(allowedPrefixes, "rib.")
 	}
 	if query.DumpType == DumpTypeUpdates || query.DumpType == DumpTypeAny {
@@ -248,7 +248,7 @@ func (f *RouteViewsFinder) scrapeFilesFromDir(dir string, prefix string, collect
 func (f *RouteViewsFinder) getDumpTypeFromPrefix(prefix string) DumpType {
 	switch prefix {
 	case "rib.":
-		return DumpTypeRib
+		return DumpTypeRibs
 	case "updates.":
 		return DumpTypeUpdates
 	default:

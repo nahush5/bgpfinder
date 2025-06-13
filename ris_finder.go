@@ -91,7 +91,7 @@ func (f *RISFinder) Find(query Query) ([]BGPDump, error) {
 	var results []BGPDump
 	var allowedPrefixes []string
 
-	if query.DumpType == DumpTypeRib || query.DumpType == DumpTypeAny {
+	if query.DumpType == DumpTypeRibs || query.DumpType == DumpTypeAny {
 		allowedPrefixes = append(allowedPrefixes, "bview.")
 	}
 	if query.DumpType == DumpTypeUpdates || query.DumpType == DumpTypeAny {
@@ -194,7 +194,7 @@ func (f *RISFinder) getCollectors() ([]Collector, error) {
 func (f *RISFinder) getDumpTypeFromPrefix(prefix string) DumpType {
 	switch prefix {
 	case "bview.":
-		return DumpTypeRib
+		return DumpTypeRibs
 	case "updates.":
 		return DumpTypeUpdates
 	default:
