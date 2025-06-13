@@ -66,9 +66,6 @@ const (
 	DumpTypeAny     DumpType = 0 // any
 	DumpTypeRib     DumpType = 1 // rib
 	DumpTypeUpdates DumpType = 2 // updates
-
-	UpdateDuration = time.Hour
-	RibDuration    = time.Minute * 15
 )
 
 // TODO: think about how this should work -- just keep it simple! no complex query structures
@@ -119,6 +116,7 @@ func dateInRange(date time.Time, query Query) bool {
 }
 
 // getDumpTypeFromPrefix returns the DumpType based on the file prefix
+/*
 func getDumpTypeFromPrefix(prefix string) DumpType {
 	switch prefix {
 	case "rib.", "bview.":
@@ -128,16 +126,4 @@ func getDumpTypeFromPrefix(prefix string) DumpType {
 	default:
 		return DumpTypeAny
 	}
-}
-
-// getDurationFromPrefix returns the standard duration for each dump type
-func getDurationFromPrefix(prefix string) time.Duration {
-	switch prefix {
-	case "rib.", "bview.":
-		return RibDuration
-	case "updates.":
-		return UpdateDuration
-	default:
-		return 0
-	}
-}
+}*/

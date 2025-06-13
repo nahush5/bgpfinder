@@ -16,6 +16,11 @@ const (
 	// https://www.ris.ripe.net/peerlist/ because it only lists
 	// currently-active collectors.
 	RISCollectorsUrl = "https://ris.ripe.net/docs/route-collectors/"
+
+	RISRibDuration    = time.Minute * 2
+	RISUpdateDuration = time.Minute * 5
+	RISRibPeriod      = time.Hour * 8
+	RISUpdatePeriod   = time.Minute * 5
 )
 
 var (
@@ -153,8 +158,8 @@ func (f *RISFinder) scrapeFilesFromDir(dir string, allowedPrefixes []string, col
 					results = append(results, BGPDump{
 						URL:       dir + file,
 						Collector: collector,
-						Duration:  getDurationFromPrefix(prefix),
-						DumpType:  getDumpTypeFromPrefix(prefix),
+						Duration:  f.getDurationFromPrefix(prefix),
+						DumpType:  f.getDumpTypeFromPrefix(prefix),
 						Timestamp: timestamp.Unix(),
 					})
 				}
@@ -184,4 +189,37 @@ func (f *RISFinder) getCollectors() ([]Collector, error) {
 		})
 	}
 	return collectors, nil
+}
+
+func (f *RISFinder) getDumpTypeFromPrefix(prefix string) DumpType {
+	switch prefix {
+	case "bview.":
+		return DumpTypeRib
+	case "updates.":
+		return DumpTypeUpdates
+	default:
+		return DumpTypeAny
+	}
+}
+
+func (f *RISFinder) getPeriodFromPrefix(prefix string) time.Duration {
+	switch prefix {
+	case "bview.":
+		return RISRibPeriod
+	case "updates.":
+		return RISUpdatePeriod
+	default:
+		return 0
+	}
+}
+
+func (f *RISFinder) getDurationFromPrefix(prefix string) time.Duration {
+	switch prefix {
+	case "bview.":
+		return RISRibDuration
+	case "updates.":
+		return RISUpdateDuration
+	default:
+		return 0
+	}
 }

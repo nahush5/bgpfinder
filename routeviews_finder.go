@@ -20,6 +20,11 @@ type rvDumpType struct {
 const (
 	ROUTEVIEWS           = "routeviews"
 	RouteviewsArchiveUrl = "https://archive.routeviews.org/"
+
+	RVRibDuration    = time.Minute * 2
+	RVUpdateDuration = time.Minute * 15
+	RVRibPeriod      = time.Hour * 2
+	RVUpdatePeriod   = time.Minute * 15
 )
 
 var (
@@ -231,11 +236,44 @@ func (f *RouteViewsFinder) scrapeFilesFromDir(dir string, prefix string, collect
 			results = append(results, BGPDump{
 				URL:       dir + file,
 				Collector: collector,
-				Duration:  getDurationFromPrefix(prefix),
-				DumpType:  getDumpTypeFromPrefix(prefix),
+				Duration:  f.getDurationFromPrefix(prefix),
+				DumpType:  f.getDumpTypeFromPrefix(prefix),
 				Timestamp: timestamp.Unix(),
 			})
 		}
 	}
 	return results, nil
+}
+
+func (f *RouteViewsFinder) getDumpTypeFromPrefix(prefix string) DumpType {
+	switch prefix {
+	case "rib.":
+		return DumpTypeRib
+	case "updates.":
+		return DumpTypeUpdates
+	default:
+		return DumpTypeAny
+	}
+}
+
+func (f *RouteViewsFinder) getPeriodFromPrefix(prefix string) time.Duration {
+	switch prefix {
+	case "rib.":
+		return RVRibPeriod
+	case "updates.":
+		return RVUpdatePeriod
+	default:
+		return 0
+	}
+}
+
+func (f *RouteViewsFinder) getDurationFromPrefix(prefix string) time.Duration {
+	switch prefix {
+	case "rib.":
+		return RVRibDuration
+	case "updates.":
+		return RVUpdateDuration
+	default:
+		return 0
+	}
 }
