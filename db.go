@@ -109,7 +109,7 @@ func UpsertBGPDumps(ctx context.Context, logger *logging.Logger, db *pgxpool.Poo
 		`
 
 		for _, d := range batch {
-			_, err := tx.Exec(ctx, stmt, d.Collector.Name, d.URL, int16(d.DumpType), d.Duration, d.Timestamp)
+			_, err := tx.Exec(ctx, stmt, d.Collector.Name, d.URL, int16(d.DumpType), time.Duration(d.Duration), d.Timestamp)
 			if err != nil {
 				logger.Error().Err(err).Str("collector", d.Collector.Name).Str("url", d.URL).Msg("Failed to execute upsert for BGP dump")
 				tx.Rollback(ctx)
@@ -164,7 +164,7 @@ func FetchDataFromDB(ctx context.Context, db *pgxpool.Pool, query Query) ([]BGPD
 		var (
 			url           string
 			dumpTypeInt   int16
-			duration      DumpDuration
+			duration      time.Duration
 			collectorName string
 			timestamp     int64
 		)
@@ -177,7 +177,7 @@ func FetchDataFromDB(ctx context.Context, db *pgxpool.Pool, query Query) ([]BGPD
 		results = append(results, BGPDump{
 			URL:       url,
 			DumpType:  DumpType(dumpTypeInt),
-			Duration:  duration,
+			Duration:  DumpDuration(duration),
 			Collector: Collector{Name: collectorName},
 			Timestamp: timestamp,
 		})
