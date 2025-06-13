@@ -64,7 +64,7 @@ type DumpType uint8
 
 const (
 	DumpTypeAny     DumpType = 0 // any
-	DumpTypeRib     DumpType = 1 // rib
+	DumpTypeRibs    DumpType = 1 // ribs
 	DumpTypeUpdates DumpType = 2 // updates
 )
 

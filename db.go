@@ -25,7 +25,7 @@ func UpsertCollectors(ctx context.Context, logger *logging.Logger, db *pgxpool.P
 	var timestampCondition string
 
 	switch dumptType {
-	case DumpTypeRib:
+	case DumpTypeRibs:
 		timestampField = `last_completed_crawl_time_ribs`
 		timestampValue = `$4`
 		timestampCondition = timestampField + ` = EXCLUDED.` + timestampField
