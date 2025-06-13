@@ -17,10 +17,10 @@ const (
 	// currently-active collectors.
 	RISCollectorsUrl = "https://ris.ripe.net/docs/route-collectors/"
 
-	RISRibDuration    = time.Minute * 2
-	RISUpdateDuration = time.Minute * 5
-	RISRibPeriod      = time.Hour * 8
-	RISUpdatePeriod   = time.Minute * 5
+	RISRibDuration    = DumpDuration(time.Minute * 2)
+	RISUpdateDuration = DumpDuration(time.Minute * 5)
+	RISRibPeriod      = DumpDuration(time.Hour * 8)
+	RISUpdatePeriod   = DumpDuration(time.Minute * 5)
 )
 
 var (
@@ -202,7 +202,7 @@ func (f *RISFinder) getDumpTypeFromPrefix(prefix string) DumpType {
 	}
 }
 
-func (f *RISFinder) getPeriodFromPrefix(prefix string) time.Duration {
+func (f *RISFinder) getPeriodFromPrefix(prefix string) DumpDuration {
 	switch prefix {
 	case "bview.":
 		return RISRibPeriod
@@ -213,7 +213,7 @@ func (f *RISFinder) getPeriodFromPrefix(prefix string) time.Duration {
 	}
 }
 
-func (f *RISFinder) getDurationFromPrefix(prefix string) time.Duration {
+func (f *RISFinder) getDurationFromPrefix(prefix string) DumpDuration {
 	switch prefix {
 	case "bview.":
 		return RISRibDuration

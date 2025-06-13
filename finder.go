@@ -1,6 +1,7 @@
 package bgpfinder
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -84,6 +85,13 @@ type Query struct {
 	DumpType DumpType
 }
 
+type DumpDuration time.Duration
+
+func (d DumpDuration) MarshalJSON() ([]byte, error) {
+	seconds := time.Duration(d).Seconds()
+	return json.Marshal(seconds)
+}
+
 // BGPDump represents a single BGP file found by a Finder.
 type BGPDump struct {
 	// URL of the file
@@ -93,7 +101,7 @@ type BGPDump struct {
 	Collector Collector `json:"collector"`
 
 	// Nominal dump duration
-	Duration time.Duration `json:"duration"`
+	Duration DumpDuration `json:"duration"`
 
 	// Type of dump (RIB or Updates)
 	DumpType DumpType `json:"type"`

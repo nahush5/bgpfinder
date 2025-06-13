@@ -21,10 +21,10 @@ const (
 	ROUTEVIEWS           = "routeviews"
 	RouteviewsArchiveUrl = "https://archive.routeviews.org/"
 
-	RVRibDuration    = time.Minute * 2
-	RVUpdateDuration = time.Minute * 15
-	RVRibPeriod      = time.Hour * 2
-	RVUpdatePeriod   = time.Minute * 15
+	RVRibDuration    = DumpDuration(time.Minute * 2)
+	RVUpdateDuration = DumpDuration(time.Minute * 15)
+	RVRibPeriod      = DumpDuration(time.Hour * 2)
+	RVUpdatePeriod   = DumpDuration(time.Minute * 15)
 )
 
 var (
@@ -256,7 +256,7 @@ func (f *RouteViewsFinder) getDumpTypeFromPrefix(prefix string) DumpType {
 	}
 }
 
-func (f *RouteViewsFinder) getPeriodFromPrefix(prefix string) time.Duration {
+func (f *RouteViewsFinder) getPeriodFromPrefix(prefix string) DumpDuration {
 	switch prefix {
 	case "rib.":
 		return RVRibPeriod
@@ -267,7 +267,7 @@ func (f *RouteViewsFinder) getPeriodFromPrefix(prefix string) time.Duration {
 	}
 }
 
-func (f *RouteViewsFinder) getDurationFromPrefix(prefix string) time.Duration {
+func (f *RouteViewsFinder) getDurationFromPrefix(prefix string) DumpDuration {
 	switch prefix {
 	case "rib.":
 		return RVRibDuration

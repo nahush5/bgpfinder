@@ -164,21 +164,20 @@ func FetchDataFromDB(ctx context.Context, db *pgxpool.Pool, query Query) ([]BGPD
 		var (
 			url           string
 			dumpTypeInt   int16
-			dur           interface{}
+			duration      DumpDuration
 			collectorName string
 			timestamp     int64
 		)
 
-		err := rows.Scan(&url, &dumpTypeInt, &dur, &collectorName, &timestamp)
+		err := rows.Scan(&url, &dumpTypeInt, &duration, &collectorName, &timestamp)
 		if err != nil {
 			return nil, err
 		}
 
-		durationVal := parseInterval(dur)
 		results = append(results, BGPDump{
 			URL:       url,
 			DumpType:  DumpType(dumpTypeInt),
-			Duration:  durationVal,
+			Duration:  duration,
 			Collector: Collector{Name: collectorName},
 			Timestamp: timestamp,
 		})
