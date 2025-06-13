@@ -31,6 +31,23 @@ type DBConfig struct {
 	DBName   string
 }
 
+/*
+type QueryParameters struct {
+}*/
+
+type Data struct {
+	Resources []bgpfinder.BGPDump `json:"resources"`
+}
+
+type DataResponse struct {
+	//Version string `json:"version,omitempty"`
+	//Time int `json:"time,omitempty"`
+	//Type string `json:"type,omitempty"`
+	//Error *string `json:"error"`
+	//QueryParameters QueryParameters `json:"queryParameters"`
+	Data Data `json:"data"`
+}
+
 func loadDBConfig(envFile string) (*DBConfig, error) {
 	if err := godotenv.Load(envFile); err != nil {
 		return nil, fmt.Errorf("error loading env file: %w", err)
@@ -349,8 +366,8 @@ func dataHandler(db *pgxpool.Pool, logger *logging.Logger) http.HandlerFunc {
 				}
 			}
 		}
-
-		jsonResponse(w, results)
+		dataResponse := DataResponse{Data: Data{results}}
+		jsonResponse(w, dataResponse)
 	}
 }
 
