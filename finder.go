@@ -27,6 +27,21 @@ type Finder interface {
 	Find(query Query) ([]BGPDump, error)
 }
 
+func (d BGPDump) MarshalJSON() ([]byte, error) {
+	custom := map[string]interface{}{
+		"url":         d.URL,
+		"collector":   d.Collector.Name,
+		"project":     "",
+		"duration":    d.Duration,
+		"attr":        []string{},
+		"format":      "mrt",
+		"transport":   "file",
+		"type":        d.DumpType,
+		"initialTime": d.Timestamp,
+	}
+	return json.Marshal(custom)
+}
+
 type Project struct {
 	Name string `json:"name"`
 }
