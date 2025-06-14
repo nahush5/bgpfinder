@@ -34,8 +34,8 @@ func (d BGPDump) MarshalJSON() ([]byte, error) {
 		"project":     "",
 		"duration":    d.Duration,
 		"attr":        []string{},
-		"format":      "mrt",
-		"transport":   "file",
+		"format":      "mrt", // TODO temporarily hardcoding, may need to fix
+		"transport":   "file", // TODO temporarily hardcoding, may need to fix
 		"type":        d.DumpType,
 		"initialTime": d.Timestamp,
 	}
