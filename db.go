@@ -136,7 +136,9 @@ func FetchDataFromDB(ctx context.Context, db *pgxpool.Pool, query Query) ([]BGPD
         WHERE collector_name = ANY($1)
         AND timestamp + duration >= to_timestamp($2)
         AND timestamp <= to_timestamp($3)
-    `
+		ORDER BY timestamp ASC, dump_type ASC
+    ` // This ORDER BY may be bad for performance? But putting it there to match bgpstream ordering (which I think this is)
+
 	if query.DumpType != DumpTypeAny {
 		sqlQuery += " AND dump_type = $4"
 	}

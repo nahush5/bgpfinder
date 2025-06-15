@@ -3,6 +3,7 @@ package bgpfinder
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -30,14 +31,14 @@ type Finder interface {
 func (d BGPDump) MarshalJSON() ([]byte, error) {
 	custom := map[string]interface{}{
 		"url":         d.URL,
-		"collector":   d.Collector.Name,
-		"project":     "",
-		"duration":    d.Duration,
-		"attr":        []string{},
-		"format":      "mrt", // TODO temporarily hardcoding, may need to fix
+		"format":      "mrt",  // TODO temporarily hardcoding, may need to fix
 		"transport":   "file", // TODO temporarily hardcoding, may need to fix
+		"project":     "",
+		"collector":   d.Collector.Name,
 		"type":        d.DumpType,
 		"initialTime": d.Timestamp,
+		"duration":    d.Duration,
+		"attr":        []string{},
 	}
 	return json.Marshal(custom)
 }
@@ -98,6 +99,13 @@ type Query struct {
 
 	// Dump type to search for. Any type if unset
 	DumpType DumpType
+}
+
+func (q Query) MarshalJSON() ([]byte, error) {
+	custom := map[string]interface{}{
+		"intervals": strconv.FormatInt(q.From.Unix(), 10) + "," + strconv.FormatInt(q.Until.Unix(), 10),
+	}
+	return json.Marshal(custom)
 }
 
 type DumpDuration time.Duration

@@ -45,7 +45,8 @@ type DataResponse struct {
 	//Type string `json:"type,omitempty"`
 	//Error *string `json:"error"`
 	//QueryParameters QueryParameters `json:"queryParameters"`
-	Data Data `json:"data"`
+	QueryParameters bgpfinder.Query `json:"queryParameters"`
+	Data            Data            `json:"data"`
 }
 
 func loadDBConfig(envFile string) (*DBConfig, error) {
