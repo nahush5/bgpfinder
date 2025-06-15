@@ -45,7 +45,7 @@ type DataResponse struct {
 	//Type string `json:"type,omitempty"`
 	//Error *string `json:"error"`
 	//QueryParameters QueryParameters `json:"queryParameters"`
-	QueryParameters bgpfinder.Query `json:"queryParameters"`
+	Query bgpfinder.Query `json:"queryParameters"`
 	Data            Data            `json:"data"`
 }
 
@@ -367,7 +367,7 @@ func dataHandler(db *pgxpool.Pool, logger *logging.Logger) http.HandlerFunc {
 				}
 			}
 		}
-		dataResponse := DataResponse{Data: Data{results}}
+        dataResponse := DataResponse{Query: query, Data: Data{results}}
 		jsonResponse(w, dataResponse)
 	}
 }
