@@ -120,6 +120,11 @@ func getDumps(ctx context.Context,
             err = nil
         } else {
             err = fmt.Errorf("most recent expected not available (collector: %s got: %s, expected: %s)", collector.Name, latest, expectedLatest)
+            if err := bgpfinder.UpsertBGPDumps(ctx, logger, db, dumps); err != nil {
+                logger.Error().Err(err).Str("collector", collector.Name).Msg("Failed to upsert dumps")
+            } else {
+                prevRunTimeEnd = latest
+            }
         }
 	}
 
