@@ -18,7 +18,8 @@ func PeriodicScraper(ctx context.Context,
 	collectors []bgpfinder.Collector,
 	db *pgxpool.Pool,
 	finder bgpfinder.Finder,
-	isRibsData bool) error {
+	isRibsData bool,
+	expectedLatest time.Time) error {
 
 	var successfullyWrittenCollectors []bgpfinder.Collector
 	var wg sync.WaitGroup
@@ -29,7 +30,7 @@ func PeriodicScraper(ctx context.Context,
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := ScrapeCollector(ctx, logger, retryMultInterval, prevRuntimes[j], collectors[j], db, finder, isRibsData); err != nil {
+			if err := ScrapeCollector(ctx, logger, retryMultInterval, prevRuntimes[j], collectors[j], db, finder, isRibsData, expectedLatest); err != nil {
 				logger.Error().Err(err).Str("collector", collectors[j].Name).Msg("Failed to upsert dumps")
 				return
 			}
@@ -56,11 +57,12 @@ func ScrapeCollector(ctx context.Context,
 	collector bgpfinder.Collector,
 	db *pgxpool.Pool,
 	finder bgpfinder.Finder,
-	isRibsData bool) error {
+	isRibsData bool,
+	expectedLatest time.Time) error {
 
 	allowedRetries := 4
 
-	dumps, err := getDumps(ctx, logger, db, finder, prevRuntime, collector, isRibsData, retryMultInterval, int64(allowedRetries))
+	dumps, err := getDumps(ctx, logger, db, finder, prevRuntime, collector, isRibsData, expectedLatest, retryMultInterval, int64(allowedRetries))
 
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to update collectors data on initial run")
@@ -83,6 +85,7 @@ func getDumps(ctx context.Context,
 	prevRunTimeEnd time.Time,
 	collector bgpfinder.Collector,
 	isRibsData bool,
+	expectedLatest time.Time,
 	retryInterval int64,
 	allowedRetries int64) ([]bgpfinder.BGPDump, error) {
 
@@ -99,11 +102,21 @@ func getDumps(ctx context.Context,
 
 	dumps, err := finder.Find(query)
 
+	mostRecentDump := int64(0)
+	for _, dump := range dumps {
+		if dump.Timestamp > mostRecentDump {
+			mostRecentDump = dump.Timestamp
+		}
+	}
+
 	if err == nil && len(dumps) == 0 {
 		err = fmt.Errorf("didn't recieve enough records for collector %s", collector.Name)
 	}
 
-    // TODO: check that we actually have the most recent record that we want
+	latest := time.Unix(mostRecentDump, 0)
+	if latest.Before(expectedLatest) {
+        err = fmt.Errorf("most recent expected not available (collector: %s got: %s, expected: %s)", collector.Name, latest, expectedLatest)
+	}
 
 	if err != nil {
 		logger.Error().Err(err).Str("collector", collector.Name).Msg("Finder.Find failed")
@@ -111,8 +124,8 @@ func getDumps(ctx context.Context,
 			return nil, err
 		}
 		logger.Info().Str("collector", collector.Name).Int("retries left", int(allowedRetries)).Msg("Will retry scraping collectors after sleeping.")
-		time.Sleep(time.Duration(time.Duration(retryInterval) * time.Second))
-		return getDumps(ctx, logger, db, finder, prevRunTimeEnd, collector, isRibsData, 2*retryInterval, allowedRetries-1)
+		time.Sleep(time.Duration(retryInterval) * time.Second)
+		return getDumps(ctx, logger, db, finder, prevRunTimeEnd, collector, isRibsData, expectedLatest, 2*retryInterval, allowedRetries-1)
 	}
 
 	logger.Info().Str("collector", collector.Name).Int("dumps_found", len(dumps)).Msg("Found BGP dumps for collector")

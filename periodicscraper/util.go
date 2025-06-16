@@ -22,8 +22,8 @@ const (
 	routeviewUpdatesInterval = (0*60 + 15) * 60
 	risRibsInterval          = (8*60 + 0) * 60
 	risUpdatesInterval       = (0*60 + 5) * 60
-	divVal                   = 128
-	epsilonTime              = 30 // buffer time so that the scraper code doesn't immediately kick off at the designated time.
+	divVal                   = 64
+	epsilonTime              = 40 // buffer time so that the scraper code doesn't immediately kick off at the designated time.
 )
 
 type DBConfig struct {

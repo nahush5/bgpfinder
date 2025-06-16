@@ -83,6 +83,34 @@ func waitUntilTimestamp(targetTime time.Time) {
 	time.Sleep(duration)
 }
 
+func getExpectedMostRecent(project string, isRibs bool) time.Time {
+	var last time.Time
+	var interval time.Duration
+	if project == "ris" {
+		if isRibs {
+			interval = time.Duration(risRibsInterval) * time.Second
+	        last = time.Now().Add(-interval)
+		} else {
+			interval = time.Duration(risUpdatesInterval) * time.Second
+	        last = time.Now().Add(-interval*2)
+		}
+	} else if project == "routeviews" {
+		if isRibs {
+			interval = time.Duration(routeviewRibsInterval) * time.Second
+	        last = time.Now().Add(-interval)
+		} else {
+			interval = time.Duration(routeviewUpdatesInterval) * time.Second
+	        last = time.Now().Add(-interval*2)
+		}
+	} else {
+		return time.Now()
+	}
+
+	remainder := last.Unix() % int64(interval.Seconds())
+	secondsUntilNext := int64(interval.Seconds()) - remainder
+	return last.Add(time.Duration(secondsUntilNext) * time.Second).Truncate(time.Minute)
+}
+
 func driver(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, project string, isRibs bool) {
 	logger.Info().Msgf("Starting periodic collectors data for %s isribs: %t", project, isRibs)
 	collectors, prevRuntimes, err := getCollectorsAndPrevRuntime(ctx, logger, db, project, isRibs)
@@ -97,7 +125,7 @@ func driver(ctx context.Context, logger *logging.Logger, db *pgxpool.Pool, proje
 	} else {
 		finder = bgpfinder.NewRouteViewsFinder()
 	}
-	err = PeriodicScraper(ctx, logger, getRetryInterval(project, isRibs), prevRuntimes, collectors, db, finder, isRibs)
+	err = PeriodicScraper(ctx, logger, getRetryInterval(project, isRibs), prevRuntimes, collectors, db, finder, isRibs, getExpectedMostRecent(project, isRibs))
 	if err != nil {
 		logger.Error().Err(err).Msgf("Failed to run periodic scraper %s isribs: %t data for collectors", project, isRibs)
 	} else {
