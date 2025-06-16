@@ -111,7 +111,7 @@ func getDumps(ctx context.Context,
 			return nil, err
 		}
 		logger.Info().Str("collector", collector.Name).Int("retries left", int(allowedRetries)).Msg("Will retry scraping collectors after sleeping.")
-		time.Sleep(time.Duration(retryInterval * int64(time.Second)))
+		time.Sleep(time.Duration(time.Duration(retryInterval) * time.Second))
 		return getDumps(ctx, logger, db, finder, prevRunTimeEnd, collector, isRibsData, 2*retryInterval, allowedRetries-1)
 	}
 
