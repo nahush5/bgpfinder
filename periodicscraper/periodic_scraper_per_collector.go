@@ -63,9 +63,9 @@ func ScrapeCollector(ctx context.Context,
 	allowedRetries := 4
 
 	dumps, err := getDumps(ctx, logger, db, finder, prevRuntime, collector, isRibsData, expectedLatest, retryMultInterval, int64(allowedRetries))
-
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to update collectors data on initial run")
+    
+    if dumps == nil && err != nil {
+        logger.Error().Err(err).Msg("Failed to update collectors data for collector: "+collector.Name)
 		return err
 	}
 
@@ -115,7 +115,12 @@ func getDumps(ctx context.Context,
 
 	latest := time.Unix(mostRecentDump, 0)
 	if latest.Before(expectedLatest) {
-        err = fmt.Errorf("most recent expected not available (collector: %s got: %s, expected: %s)", collector.Name, latest, expectedLatest)
+        if expectedLatest.Sub(latest) > ( 24 * 60 * time.Hour) {
+            fmt.Printf("collector (%s) appears to be out of date. Skipping retry")
+            err = nil
+        } else {
+            err = fmt.Errorf("most recent expected not available (collector: %s got: %s, expected: %s)", collector.Name, latest, expectedLatest)
+        }
 	}
 
 	if err != nil {
