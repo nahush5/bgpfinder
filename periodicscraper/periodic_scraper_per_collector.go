@@ -103,13 +103,15 @@ func getDumps(ctx context.Context,
 		err = fmt.Errorf("didn't recieve enough records for collector %s", collector.Name)
 	}
 
+    // TODO: check that we actually have the most recent record that we want
+
 	if err != nil {
 		logger.Error().Err(err).Str("collector", collector.Name).Msg("Finder.Find failed")
 		if allowedRetries == 0 {
 			return nil, err
 		}
 		logger.Info().Str("collector", collector.Name).Int("retries left", int(allowedRetries)).Msg("Will retry scraping collectors after sleeping.")
-		time.Sleep(time.Duration(retryInterval))
+		time.Sleep(time.Duration(retryInterval * time.Second))
 		return getDumps(ctx, logger, db, finder, prevRunTimeEnd, collector, isRibsData, 2*retryInterval, allowedRetries-1)
 	}
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -102,9 +103,16 @@ func getCollectorsAndPrevRuntime(ctx context.Context,
 	project string,
 	isRibs bool) ([]bgpfinder.Collector, []time.Time, error) {
 
-	stmt := `SELECT name,` + getTimestampForDumpType(isRibs) + ` FROM collectors where project_name = $1`
+	var dumpType int
+	if isRibs {
+		dumpType = 2
+	} else {
+		dumpType = 1
+	}
 
-	rows, err := db.Query(ctx, stmt, project)
+	stmt := `SELECT collector_name, MAX(timestamp) as timestamp from bgp_dumps WHERE dump_type = $1 GROUP BY collector_name`
+	rows, err := db.Query(ctx, stmt, dumpType)
+
 	if err != nil {
 		logger.Error().Err(err).Msg("Query failed")
 		return nil, nil, err
@@ -126,6 +134,15 @@ func getCollectorsAndPrevRuntime(ctx context.Context,
 		}
 		collector.Project.Name = project
 		collector.Name = collectorName
+		if project == "ris" {
+			if !strings.Contains(collector.Name, "rrc") {
+				continue
+			}
+		} else {
+			if strings.Contains(collector.Name, "rrc") {
+				continue
+			}
+		}
 
 		fmt.Printf("Collector: %s, Last Completed Crawl Time: %s\n", collectorName, lastCompletedCrawlTime)
 		collectors = append(collectors, collector)
